@@ -1,0 +1,8 @@
+{
+  "name": "plumbline",
+  "description": "Plumbline knowledge graph — search, traverse, and retrieve from indexed code repos and PDF documents",
+  "version": "1.0.0",
+  "author": {
+    "name": "ByteBell"
+  }
+}

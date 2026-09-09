@@ -1,0 +1,25 @@
+{
+  "name": "plumbline",
+  "owner": {
+    "name": "ByteBell",
+    "email": "hello@bytebell.com"
+  },
+  "metadata": {
+    "description": "Claude Code skills for the Plumbline code knowledge graph MCP server"
+  },
+  "plugins": [
+    {
+      "name": "plumbline",
+      "source": "./plugins/plumbline",
+      "description": "Plumbline knowledge graph — search, traverse, and retrieve from indexed code repos and PDF documents",
+      "version": "1.0.0",
+      "author": {
+        "name": "ByteBell"
+      },
+      "homepage": "https://github.com/ByteBell/plumbline-skills",
+      "repository": "https://github.com/ByteBell/plumbline-skills",
+      "license": "MIT",
+      "keywords": ["plumbline", "knowledge-graph", "code-search", "neo4j", "mcp"]
+    }
+  ]
+}
