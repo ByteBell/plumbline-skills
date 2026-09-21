@@ -104,8 +104,9 @@ right ones.
 
 When investigating how services interact across repositories:
 
-1. Omit `knowledgeId` — `stakeout`/`manhunt` then span every
-   repo the session may read; each hit carries its own `knowledgeId`.
+1. Omit `repos` — `stakeout`/`manhunt` then span every repo the session may
+   read; each hit carries its own `knowledgeId`. To span a NAMED set instead,
+   pass one `repos` entry per repo rather than repeating the call.
 2. Search the surface from both sides: the producer's vocabulary ("publishes
    order event") and the consumer's ("subscribes order event") — analysis
    text usually names both.

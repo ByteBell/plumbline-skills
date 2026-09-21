@@ -104,7 +104,8 @@ once per session).
 
 ## Commit Discipline
 
-- Pinned commit → `commitHash` on every call; an empty `manhunt`
+- Pinned commit → carry it on every call (`commitHash` on single-repo tools,
+  `repos[].commitHash` on `stakeout` / `manhunt`); an empty `manhunt`
   result then genuinely means "absent at that commit".
 - No pinned commit → newest snapshot is the current state; read the
   `commits` array on unit hits before claiming existence at any version.
@@ -180,10 +181,10 @@ Work down this ladder. Do not skip to the bottom, and do not stop on a rung:
    members and re-exported symbols land in different recall tiers. A `name`
    miss says nothing about fulltext. Types and interfaces are not CodeUnits —
    0 units does NOT mean nothing depends on them.
-3. **Still nothing named?** Drop `knowledgeId` and re-run — `stakeout`,
-   `manhunt`, `dragnet` and `cross_repo_lookup` each sweep every accessible
-   repo in ONE call. Looping repos individually is the most common way to
-   waste a run.
+3. **Still nothing named?** Drop `repos` and re-run — `stakeout`, `manhunt`
+   and `cross_repo_lookup` each sweep every accessible repo in ONE call
+   (`dragnet` too, from its required seed repo). Looping repos individually
+   is the most common way to waste a run.
 4. **Escalate by WHAT YOU HOLD, not by a fixed sequence.** A seed FILE →
    `collateral_damage`. A package, wire address or exported symbol →
    `cross_repo_lookup`. A change you can describe but name nothing in →
@@ -193,7 +194,7 @@ Work down this ladder. Do not skip to the bottom, and do not stop on a rung:
    entry point when you hold no file and no coordinate, which is the normal
    state at a repo boundary you have not searched yet. If you are about to
    invent another search string, you are in its case.
-5. **`shakedown` last, and budgeted.** Two patterns per repo. See below.
+5. **`shakedown` last.** Confirmation, not discovery. See below.
 
 ### `shakedown` is a confirmation tool — the grep trap
 
@@ -216,14 +217,14 @@ failure modes to recognise in your own transcript:
   pass-through. If you are greping repo-by-repo, you are in the wrong funnel:
   go to `dragnet` / `collateral_damage`.
 
-**Budget: two patterns per repo.** No decisive hit after two means the thing
-is not written as text there. Switch tools.
+**Stop when a pattern is not decisive.** No decisive hit means the thing is
+not written as text there. Switch tools.
 
 <a id="cross-repo-investigation"></a>
 
 ## Cross-Repo Investigation
 
-Omitting `knowledgeId` widens a *search* across repos, but it does not answer
+Omitting `repos` widens a *search* across repos, but it does not answer
 a *dependency* question — searching finds files that mention something, not
 files that would break. Three tools leave the single-repo spine:
 

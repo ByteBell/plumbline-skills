@@ -15,8 +15,11 @@ the refactor...", "when was Y added?"
    older commits: take those from the user's reference, the task brief, or the
    commit list `case_file` reports back when asked for a commit this repo never
    indexed.
-2. Pass `commitHash` to ALL subsequent calls: `blueprint`, `stakeout`,
-   `case_file`, `interrogation`, `manhunt`.
+2. Carry that commit on ALL subsequent calls: as `commitHash` on the
+   single-repo tools (`blueprint`, `kingpin`, `case_file`, `interrogation`,
+   `the_receipts`, `shakedown`), and as the `commitHash` on that repo's
+   `repos` entry for `stakeout` and `manhunt` — those two take no call-level
+   `commitHash`.
 3. If you omit it, you get the NEWEST snapshot — which may be FIXED code,
    not the version under investigation.
 
@@ -25,10 +28,10 @@ the refactor...", "when was Y added?"
 | Tool            | What commitHash does                                                                                                      |
 | --------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | `blueprint`     | The module set AS OF that commit, not today's modules filtered; if none is indexed there, the error lists ones that are   |
-| `stakeout`      | Searches only FileVersion snapshots of that commit                                                                        |
+| `stakeout`      | Via `repos[].commitHash`: searches only FileVersion snapshots of that commit — each entry pins its own repo             |
 | `case_file`     | Returns the file's snapshot + unit map AT that commit — the version that commit wrote, or, when it changed nothing there, the newest one before it (never a later one). Check the returned `commitHash` for which. A commit the repo never indexed errors, listing commits that do |
 | `interrogation` | Resolves the unit through that commit's snapshot                                                                          |
-| `manhunt`       | Only units present in that commit's snapshot — empty = genuinely absent there                                             |
+| `manhunt`       | Via `repos[].commitHash`: only units present in that commit's snapshot — empty = genuinely absent there                  |
 
 ## Snapshot & Content-Addressing Semantics
 
@@ -43,8 +46,8 @@ the refactor...", "when was Y added?"
   identical implementation. Without `commitHash`, a unit hit proves
   existence _somewhere_, not at your commit — read the per-hit `commits`
   array.
-- "When was X introduced?" → `manhunt {name: "X"}` WITHOUT
-  commitHash; the `commits` array brackets the introduction. `roll_call` dates
+- "When was X introduced?" → `manhunt {name: "X"}` WITHOUT a commit on
+  its `repos` entry; the `commits` array brackets the introduction. `roll_call` dates
   only the newest index run, so it bounds the search but cannot date the
   individual commits in that array.
 - The same qualifiedName can return several hits with disjoint `commits`
@@ -53,6 +56,7 @@ the refactor...", "when was Y added?"
 
 ## If Results Look Wrong
 
-Re-check: did you include `commitHash`? If not, re-fetch with it before
+Re-check: did you pin the commit (`commitHash`, or `repos[].commitHash` on
+`stakeout` / `manhunt`)? If not, re-fetch with it before
 concluding. Code at commit X may differ significantly from the newest
 snapshot — and a unit you "found" may not exist there at all.

@@ -24,10 +24,13 @@ private internals of other repos surface without ever being guessed.
 
 `knowledgeId` (required — the **CHANGED** repo, not the one you are curious
 about; the walk is directional and starts at what the seed publishes).
-Optional: `symbols` (the changed public surface — OMIT to sweep every consumer
-of the seed repo's packages, much broader), `query` (**strongly recommended**),
-`hops` (1–3, default 2), `includeNamespace` (default true), `limit` (1–100,
-default 30).
+Optional: `repos` (`[{knowledgeId, commitHash?}]` — which repos RESULTS may
+come from; the seed stays in scope; omit for all), `symbols` (the changed public
+surface — OMIT to sweep every consumer of the seed repo's packages, much
+broader), `query` (**strongly recommended**), `hops` (1–3, default 2),
+`includeNamespace` (default true), `includeOrigin` (default true — also return
+the seed repo's own file that DEFINES one of `symbols`, which no hop reaches),
+`limit` (1–100, default 30).
 
 **`query` must stay SHORT** — it is a fulltext query, not a prompt. A handful of
 content words: `"throws promise to suspend until value resolves pending
@@ -56,10 +59,12 @@ lens** (`query`) reaches files coupled semantically with no import path at all.
 | Field              | Type              | Notes                                                       |
 | ------------------ | ----------------- | ----------------------------------------------------------- |
 | `knowledgeId`      | string (required) | The CHANGED repo (from `roll_call`). The walk starts at what it publishes. |
+| `repos`            | array (optional)  | `[{knowledgeId, commitHash?}]` — which repos RESULTS may come from. The seed stays in scope regardless. Omit for all. |
 | `symbols`          | string[] (opt.)   | The changed public surface — names you CAN name. Omit for every consumer of the seed repo's packages (much broader). |
 | `query`            | string (opt.)     | Short behavioural phrase describing what the change DOES. Enables the behaviour lens. **Strongly recommended.** |
 | `hops`             | int 1–3 (opt.)    | How far to walk. Default 2.                                  |
 | `includeNamespace` | bool (opt.)       | Count whole-module imports (`import * as React`) as consumers. Default true. |
+| `includeOrigin`    | bool (opt.)       | Also return the seed repo's own file that DEFINES one of `symbols` — its own contract, which hop 1 (other repos only) and hop 2 (never re-harvests the seed) cannot reach. Default true. |
 | `limit`            | int 1–100 (opt.)  | Default 30.                                                  |
 
 ## `query` must stay SHORT

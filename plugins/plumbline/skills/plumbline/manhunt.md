@@ -17,17 +17,19 @@ commits whose snapshot includes it.
 
 Exactly ONE of `query` (fulltext over name/qualifiedName/summary — use
 behaviour words) or `name` (exact `qualifiedName` or bare name — use exact
-identifiers). Optional: `knowledgeId` (OMIT to sweep every accessible repo in
-one call), `commitHash`, `limit` (1–100, default 20).
+identifiers). Optional: `repos` (one entry for one repo, several for exactly those, OMIT to
+sweep every accessible repo in one call — each entry pins its own `commitHash`), `limit`
+(1–100, default 20).
 
 Returns `{knowledgeId, qualifiedName, unitKind, signature, startLine, endLine,
 summary (≤250 chars), relativePath, commits, score}`.
 
 - **Read the `commits` array, always.** CodeUnits are content-addressed, so
   commits with identical implementations SHARE one node — a hit proves the unit
-  exists *somewhere*, not at the commit you care about. Pass `commitHash` for a
-  version-pinned question; read `commits` when no commit is pinned. These are
-  NOT interchangeable: omitting `commitHash` on a pinned question returns hits
+  exists *somewhere*, not at the commit you care about. For a version-pinned
+  question put the `commitHash` on that repo's `repos` entry; read `commits`
+  when no commit is pinned. These are NOT interchangeable: omitting the
+  commit on a pinned question returns hits
   anchored to whichever commits happen to share that implementation — which
   looks like an answer while telling you nothing about yours. If you want both
   the anchor and the introduction history, that is two calls, not one.
@@ -41,7 +43,7 @@ summary (≤250 chars), relativePath, commits, score}`.
 - Type *consumers* are invisible here — a hit shows where a type is declared,
   never who depends on it. Seed `collateral_damage` on the declaring file (all
   seven lenses first, then narrow to `types`).
-- THIN → the other mode first, then drop `knowledgeId`, then `stakeout`. Past
+- THIN → the other mode first, then drop `repos`, then `stakeout`. Past
   that, escalate by WHAT YOU HOLD: a declaring FILE → `collateral_damage`; a
   package / wire address / exported symbol → `cross_repo_lookup`; only a prose
   description of the change → `dragnet`. Falling through to repo-by-repo
@@ -56,8 +58,7 @@ summary (≤250 chars), relativePath, commits, score}`.
 | ------------- | ----------------- | --------------------------------------------- |
 | `query`       | string (optional) | Fulltext over name/qualifiedName/summary.     |
 | `name`        | string (optional) | Exact `qualifiedName` (or bare name) match.   |
-| `knowledgeId` | string (optional) | Restrict to one repo (from `roll_call`).      |
-| `commitHash`  | string (optional) | Only units present in this commit's snapshot. |
+| `repos`       | array (optional)  | `[{knowledgeId, commitHash?}]` — which repos to search, each at its own snapshot. One entry, several, or omit for all. |
 | `limit`       | int 1–100 (opt.)  | Default 20.                                   |
 
 Provide **exactly one** of `query` / `name`.
@@ -117,7 +118,7 @@ _somewhere_, not at the commit you care about. Two correct usages:
   A file that merely defines, imports, or re-exports the changed contract IS
   impacted, even with 0 CodeUnits.
 - **Thin ≠ absent — escalate, don't grep.** First the other mode, then drop
-  `knowledgeId` (one call sweeps every accessible repo), then `stakeout`
+  `repos` (one call sweeps every accessible repo), then `stakeout`
   `searchIn='both'`. Past that the next tool is chosen by WHAT YOU HOLD, not by
   a fixed sequence: a seed FILE → `collateral_damage`; a package / wire address
   / exported symbol → `cross_repo_lookup`; a change you can describe but name

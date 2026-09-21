@@ -2,8 +2,8 @@
 name: shakedown
 description: >
   Dedicated usage skill for the `shakedown` MCP tool — GREP the verbatim source
-  text of ONE indexed repository. Confirmation tool, not a discovery tool;
-  carries a hard call budget. Read when the digest attached to its first result is not enough.
+  text of ONE indexed repository. Confirmation tool, not a discovery tool.
+  Read when the digest attached to its first result is not enough.
 user-invocable: false
 ---
 
@@ -31,8 +31,8 @@ without naming it contains no matchable text, and these usually outnumber the
 explicit sites — and (2) the same idea named differently in another repo. A grep
 that returns every fork can still be missing most of the blast radius.
 
-- **Budget: two patterns per repo.** If two have not produced a decisive hit,
-  stop — the thing is not written as text there. Watch for the widening spiral
+- **Stop when a pattern is not decisive.** If it has not produced a decisive
+  hit, the thing is not written as text there. Watch for the widening spiral
   (`Updater<T>` → `Updater` → `typeof` → `set`) and the repo-by-repo sweep;
   both are the wrong funnel, not slow progress.
 - **Read the header.** A capped or timed-out scan says so — treat it as a
@@ -79,13 +79,13 @@ So a grep that returns every fork can still be missing most of the blast
 radius. Use `shakedown` to **prove a site you already suspect**. Use the graph
 tools to find the set.
 
-## Budget: two patterns per repo
+## Stop when a pattern is not decisive
 
 Re-greping is the most common way to burn an entire investigation, because grep
 never reports failure — it returns *something*, and noise reads as progress.
 
-**If two patterns on a repo have not produced a decisive hit, stop.** The thing
-you are looking for is not written as text there, and a third pattern will not
+**If a pattern on a repo has not produced a decisive hit, stop.** The thing
+you are looking for is not written as text there, and another pattern will not
 change that.
 
 Two failure modes to recognise in your own transcript:

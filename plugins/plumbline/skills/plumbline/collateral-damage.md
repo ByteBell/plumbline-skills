@@ -55,8 +55,10 @@ why the `contracts` lens does not cross repos.
 ## Digest
 
 Seed with EITHER `keyword` OR (`knowledgeId` + `relativePath`). Optional
-`commitHash`, `lens` (subset of the seven; default ALL SEVEN), `scope` (`keywords`
-lens only; default `both`), `limit` (1–100 per lens, default 20).
+`commitHash`, `repos` (`[{knowledgeId}]` — which repos IMPACTED rows may come
+from; the seed's repo stays in scope; omit for all), `lens` (subset of the
+seven; default ALL SEVEN), `scope` (`keywords` lens only; default `both`),
+`limit` (1–100 per lens, default 20).
 
 Works IN-REPO and cross-repo. Seven lenses, each reading a DIFFERENT edge:
 
@@ -75,8 +77,8 @@ Works IN-REPO and cross-repo. Seven lenses, each reading a DIFFERENT edge:
   `'same-repo'` for the seed's nearest neighbours, `'cross-repo'`, or `'both'`,
   the default).
 
-Five of the seven therefore fold INWARD, which is why this tool is heavy in the
-single-repo budget too: `imports`, `dependencies`, `contracts`, `types` and the
+Five of the seven therefore fold INWARD, which is why this tool leads the
+single-repo fold stage too: `imports`, `dependencies`, `contracts`, `types` and the
 same-repo half of `surfaces` never leave the seed's repo, and
 `keywords scope='same-repo'` is the in-repo thematic fold most runs never ask
 for.
@@ -157,6 +159,7 @@ lead.
 | `knowledgeId`  | string (opt.)    | Seed file's repo (from `roll_call`). Required unless `keyword`.    |
 | `relativePath` | string (opt.)    | Seed file path (from `stakeout`). File-seed mode.                  |
 | `commitHash`   | string (opt.)    | Pin the seed to a snapshot. Omit → newest.                         |
+| `repos`        | array (opt.)     | `[{knowledgeId, …}]` — which repos IMPACTED rows may come from; the seed's repo stays in scope. Rows are pinned to the seed's snapshot, so per-entry commits do not apply here. |
 | `keyword`      | string (opt.)    | Keyword-seed mode: exact `:Keyword` name. Excludes `relativePath`. |
 | `lens`         | string[] (opt.)  | Subset of the seven below. Default: **all seven**.                     |
 | `scope`        | enum (opt.)      | `keywords` lens only. Default `both` (in-repo + cross-repo).       |

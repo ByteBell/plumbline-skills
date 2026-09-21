@@ -1,88 +1,149 @@
 ---
 name: the-receipts
 description: >
-  Dedicated usage skill for the `the_receipts` MCP tool — read verbatim
-  source from an IR-indexed repo's local checkout, by line range or
-  search-in-file. The IR-schema tool for reading raw source lines.
+  Dedicated usage skill for the `the_receipts` MCP tool — get verbatim
+  source from an IR-indexed repo: a code unit's line range inline with a
+  100-line buffer, a whole file as a presigned S3 URL to download, or a
+  search inside a file. The IR-schema tool for reaching raw source.
   Read when the digest attached to its first result is not enough.
 user-invocable: false
 ---
 
 # the_receipts
 
-Return the **actual source text** of a file in an IR-indexed repo. Every other
+Reach the **actual source text** of a file in an IR-indexed repo. Every other
 ir\_\* tool returns analysis (summaries, signatures, line ranges) — this is the
-only one that returns the lines themselves. It works in two modes, chosen by
-deployment config:
+only one that reaches the bytes themselves. The bytes live in S3, at the
+commit-namespaced `repository/` prefix the ingestion pipeline uploaded, and
+what you get back depends on what you ask for:
 
-- **Streaming** (`FILE_STREAMING=true`): bytes are fetched from the file-storage
-  server at `{FILE_STORAGE_URL}/files/{orgName}/repo/{knowledgeId}/{commitHash}/{path}`;
-  `orgName`/`commitHash` come from the IR graph (no local clone needed).
-- **Local disk** (else): bytes are read from the per-commit checkout at
-  `<base>/orgs/<org>/github/<owner>/<repo>/<knowledgeId>/<commitHash>/repo/<path>`.
+- **Range** (`symbol`, or `fromLine`/`toLine` — a code unit): the lines come
+  back **inline**, widened by 100 lines on each side so the unit arrives with
+  its imports, siblings and call sites, token-budgeted.
+- **Delivery** (no line args, no `search` — the whole file): the file is
+  **not** returned inline. You get a **presigned S3 URL**, valid 270 seconds
+  from issue, and you download it yourself with a plain HTTP GET (no auth
+  header).
+- **Search** (`search` set, and `bulk_search`): the file is scanned server-side
+  and only the matching lines + context come back.
 
 Either way you just pass `knowledgeId` (+ optional `commitHash`) — no path guessing.
 
 ## Digest
 
-`knowledgeId` + `relativePath` (both required, exact path from `stakeout` /
-`case_file`). Then EITHER range mode — `fromLine` (1-based, default 1),
-`toLine` (inclusive; omit → to end, token-capped), `maxTokens` (500–50000,
-default 10000) — OR search mode: set `search` (case-insensitive) with
-`contextLines` (0–10, default 3), which ignores the range args. Optional
-`commitHash` (full or prefix; omit → newest indexed commit).
+`knowledgeId`, plus `relativePath` (exact path from `stakeout` / `case_file`)
+**or** `symbol`. Optional `commitHash` (full or prefix; omit → newest indexed
+commit).
 
-This is the ONLY tool that returns actual source lines; every other tool
-returns analysis. Range mode prefixes each line with its number and reports
-`Lines: a-b of TOTAL`, with a `More: re-call with fromLine=N` cursor when the
-budget cuts the range.
+**A code unit by NAME** — pass `symbol`: `addEventListener`, or the qualified
+`FragmentInstance.prototype.addEventListener`. The span is resolved in the
+graph at this commit and those lines come back inline. With no
+`relativePath` it finds the file too; with one, it narrows to that file. The
+header names the declaration it resolved and the lines it occupies, so you cite
+what you actually got.
 
-- **Reach it through the funnel.** Take `relativePath` from a `stakeout` hit
-  and the line range from `case_file`/`interrogation` (`startLine`–`endLine`),
-  then read exactly that span instead of paging blind.
+**A code unit by NUMBER** — pass `fromLine`/`toLine` from `case_file` /
+`interrogation`'s `startLine`–`endLine`. `Requested:` restates your span;
+`Lines: a-b of TOTAL` is what was returned; a `More: re-call with fromLine=N`
+cursor appears when the budget (`maxTokens`, 500–50000, default 10000) cuts it.
+
+**ASK BY NAME UNLESS THE NUMBERS CAME FROM THIS COMMIT.** A line number only
+addresses the snapshot it was read from. One carried in from a pull request's
+diff, an editor, a stack trace or an older commit addresses a **different
+file** — and nothing in the result says so, because the wrong lines look exactly
+like the right ones. A name survives those commits where a number does not.
+
+Two or more declarations of one name come back as a list of
+`path:start-end  qualifiedName` — re-call with `relativePath` or the qualified
+name. No match says so, and says the symbol may postdate this commit or live in
+a test file (those are not indexed).
+
+**A whole file** — no line args — is never inline. **You are given a presigned
+S3 URL and you have to download it**: `Download:` (the URL), `Expires:` (270s
+from issue), `Size:`. GET it before it expires; an expired URL is a 403, and
+the fix is to call this tool again for a fresh one.
+
+Set `search` (case-insensitive) with `contextLines` (0–10, default 3) to get
+matching lines instead; the range args are ignored in that mode.
+
+- **Reach it through the funnel.** Take `relativePath` from a `stakeout` hit,
+  then ask for the span by `symbol` — or by the `startLine`–`endLine` that
+  `case_file`/`interrogation` reported on this commit — instead of reading blind.
 - Access is org-scoped: a `knowledgeId` outside the session's set is refused.
-- "File not found in storage" (streaming) / "No on-disk checkout" (local disk)
-  are environment or ingestion gaps, NOT a bad path — do not retry variations.
+- "File not found in S3" is an ingestion gap for that path at that commit, NOT
+  a bad path — do not retry variations.
 - **Cite what you read** as `relativePath:fromLine-toLine`, grounded in the
-  returned lines rather than the file-level summary.
+  returned or downloaded lines rather than the file-level summary.
 - THIN → to find a string you cannot place, use `shakedown`, not repeated
-  reads here.
+  calls here.
+
+## Why `symbol` exists — a measured failure
+
+Measured on `react/react`, 2026-09-20. A pull request whose base was 39 commits
+past the indexed snapshot had its changed function sitting ten lines lower than
+the diff said. So the diff's `old lines 3063-3074`, handed straight to this
+tool, landed inside `removeEventListener` while the caller was reasoning about
+`addEventListener`.
+
+The caller — a reviewing agent — noticed the mismatch, could not trust a single
+line it had read, and declined to report anything at all. A whole run spent to
+produce nothing, and the only signal that anything was wrong was buried in its
+own reasoning. Had it *not* noticed, it would have reported confident findings
+about code that is not there.
+
+The fix is not to make callers better at arithmetic across commits. It is to
+stop asking them to do it: pass the name, and the span is resolved here against
+the snapshot that is actually being read.
 
 ## Schema
 
-| Field          | Type              | Notes                                                           |
-| -------------- | ----------------- | --------------------------------------------------------------- |
-| `knowledgeId`  | string (required) | From `roll_call`.                                               |
-| `relativePath` | string (required) | Exact path, as returned by `stakeout` / `case_file`.            |
-| `fromLine`     | number (optional) | 1-based start line (range mode). Default 1.                     |
-| `toLine`       | number (optional) | 1-based end line, inclusive. Omit → read to end (token-capped). |
-| `maxTokens`    | number (optional) | Response cap for range mode (500–50000, default 10000).         |
-| `search`       | string (optional) | When set → search mode: only lines containing it + context.     |
-| `contextLines` | number (optional) | Context lines around each search match (0–10, default 3).       |
-| `commitHash`   | string (optional) | Specific commit (full or prefix). Omit → newest indexed commit. |
+| Field          | Type              | Notes                                                               |
+| -------------- | ----------------- | ------------------------------------------------------------------- |
+| `knowledgeId`  | string (required) | From `roll_call`.                                                   |
+| `operation`    | string (optional) | `single` (default), `bulk_search`, `bulk_retrieve`.                 |
+| `relativePath` | string            | Exact path, as returned by `stakeout` / `case_file`. Required for `single` unless `symbol` is given; with `symbol`, narrows it to this file. |
+| `symbol`       | string (optional) | `single` only. A declaration's name, bare or qualified. Its span is resolved in the graph at this commit → inline range. Prefer over line args whenever the numbers came from outside this snapshot. |
+| `paths`        | string[] (opt.)   | File paths for `bulk_search` / `bulk_retrieve` (max 50).            |
+| `fromLine`     | number (optional) | 1-based start of the unit, from `case_file`/`interrogation` ON THIS COMMIT. Either line arg → inline range. |
+| `toLine`       | number (optional) | 1-based end line, inclusive. Omit → to end.                         |
+| `maxTokens`    | number (optional) | Token cap per file for an inline range (500–50000, default 10000).  |
+| `search`       | string (optional) | When set → search mode: only lines containing it + context. No URL. |
+| `matchOnly`    | boolean (opt.)    | `bulk_search` only: counts + line numbers, no context windows.      |
+| `contextLines` | number (optional) | Context lines around each search match (0–10, default 3).           |
+| `commitHash`   | string (optional) | Specific commit (full or prefix). Omit → newest indexed commit.     |
 
-## Two modes
+## Three modes
 
-- **Range** (default): returns `fromLine`–`toLine`, each line prefixed with its
-  number. Header reports `Lines: a-b of TOTAL`; when the range is cut by the
-  token budget or runs past the cap, a `More: re-call with fromLine=N` hint
-  gives the continuation cursor.
-- **Search** (`search` set): scans the whole file, returns every line
-  containing the term (case-insensitive) plus `contextLines` around each, with
-  a match count. Range args are ignored in this mode.
+- **Range** (`fromLine`/`toLine` set): returns the span plus 100 lines each
+  side, each line prefixed with its number. Header reports `Requested:` and
+  `Lines: a-b of TOTAL`; when the token budget cuts it, a
+  `More: re-call with fromLine=N` hint gives the continuation cursor.
+- **Delivery** (no line args): returns `Download:` / `Expires:` / `Size:` for
+  the file. The URL is a presigned S3 GET, valid 270 seconds; download it and
+  read from the bytes. `bulk_retrieve` follows the same rule per path — line
+  args → inline ranges, none → one URL each — with `ERROR:` for a path that
+  is not at that commit.
+- **Search** (`search` set): scans the whole file server-side, returns every
+  line containing the term (case-insensitive) plus `contextLines` around each,
+  with a match count. Range args are ignored in this mode. `bulk_search` does
+  the same across `paths` and adds a `noMatch:` list — a definitive "absent"
+  signal for those files.
 
 ## Rules
 
 - **Reach this tool through the funnel.** Get `relativePath` from an
   `stakeout` hit and the line range from `case_file` /
-  `interrogation` (`startLine`–`endLine`). Then read exactly that span instead
-  of paging blind — e.g. a unit at lines 50–68 → `fromLine: 50, toLine: 68`.
+  `interrogation` (`startLine`–`endLine`). Then ask for exactly that span
+  instead of reading blind — e.g. a unit at lines 50–68 →
+  `fromLine: 50, toLine: 68`; lines 1–168 come back.
+- **A whole file is a URL, not source.** Download it before you cite. A claim
+  grounded on the receipt alone is grounded on nothing; RULE 1 is satisfied by
+  the bytes you fetched.
 - **Commit:** omit `commitHash` to read the newest indexed commit. Pass it
   (full or prefix) only when version-pinned.
 - **Access is org-scoped** like every ir\_\* tool: a `knowledgeId` outside the
   session's accessible set is refused — call `roll_call` for valid ids.
-- **Source depends on mode.** In streaming mode a missing file reports "file not
-  found in storage"; in local-disk mode a missing clone reports "No on-disk
-  checkout" — both are environment/ingestion gaps, not a bad path.
+- **"File not found in S3"** means that path is not in the upload for that
+  commit — an ingestion gap, not a bad path.
 - **Cite what you read** as `relativePath:fromLine-toLine`, grounded in the
-  returned lines rather than the file-level summary.
+  returned or downloaded lines rather than the file-level summary.

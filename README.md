@@ -46,7 +46,7 @@ repeat.
 .claude-plugin/marketplace.json     marketplace definition
 plugins/plumbline/
   .claude-plugin/plugin.json        plugin manifest
-  skills/plumbline/                 23 skill files, mirrored from the server
+  skills/plumbline/                 24 skill files, mirrored from the server
 ```
 
 ## Licence

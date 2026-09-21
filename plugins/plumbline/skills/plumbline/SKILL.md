@@ -66,7 +66,7 @@ Three facts drive every workflow:
 2. **`CodeUnit` is content-addressed and shared across commits** with
    identical implementations. A unit hit proves nothing about a specific
    commit unless anchored — `manhunt` reports a `commits` array per
-   hit and accepts `commitHash` to filter.
+   hit and filters by the `commitHash` on a `repos` entry.
 3. **`knowledgeId` is an opaque string** (not necessarily a UUID). Obtain it
    from `roll_call`; never guess it from a repo name.
 
@@ -87,6 +87,7 @@ quality, costs nothing, and never changes the result. See
 | Tool                | One-liner                                                                        | Dedicated skill                                                         |
 | ------------------- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
 | `roll_call`         | List IR-indexed repos (knowledgeId, repoId, orgId) + each one's newest commit    | [roll-call.md](plumbline://skills/plumbline/roll-call.md)                 |
+| `rap_sheet`         | What a repo DOES at one commit: a 150-token brief per commit with no arguments, the full prose account for one named commit, plus its `kind`, `domain` and counted module-graph shape — the highest altitude, and how you decide WHICH repos a cross-repo question belongs to before spending a sweep | [rap-sheet.md](plumbline://skills/plumbline/rap-sheet.md)                 |
 | `blueprint`         | One repo's MODULE map at one commit: every subsystem with its role, root, file count, one-line responsibility, and the modules it leans on — or, with `module`, that module's exact member files | [blueprint.md](plumbline://skills/plumbline/blueprint.md)                 |
 | `kingpin`           | One repo's HUB ranking at one commit: the files its import graph converges on (PageRank over `IMPORTS_FILE`), with in/out-degree and a utility-hub flag | [kingpin.md](plumbline://skills/plumbline/kingpin.md)                     |
 | `stakeout`          | Find files: fulltext over LLM file analysis, or path substring, commit-scoped    | [stakeout.md](plumbline://skills/plumbline/stakeout.md)                   |
@@ -97,7 +98,7 @@ quality, costs nothing, and never changes the result. See
 | `the_receipts`      | Read VERBATIM source by line range / search / bulk_search / bulk_retrieve        | [the-receipts.md](plumbline://skills/plumbline/the-receipts.md)           |
 | `cross_repo_lookup` | Resolve a GLOBAL coordinate — package / wire address / exported symbol — to the files on each side of it | [cross-repo-lookup.md](plumbline://skills/plumbline/cross-repo-lookup.md) |
 | `dragnet`           | Find the files a change hits when you CANNOT name them; harvests the names from the graph as it walks | [dragnet.md](plumbline://skills/plumbline/dragnet.md)                     |
-| `shakedown`         | GREP raw source text (literal or regex) over the on-disk snapshot of ONE repo — confirmation only, budgeted | [shakedown.md](plumbline://skills/plumbline/shakedown.md)                 |
+| `shakedown`         | GREP raw source text (literal or regex) over the on-disk snapshot of ONE repo — confirmation only            | [shakedown.md](plumbline://skills/plumbline/shakedown.md)                 |
 | `file_a_complaint`  | Report wrong/missing tool results (requires an MCP API key)                      | _(simple — inline description sufficient)_                              |
 | `case_notes`        | Persist conversation transcript + accessed nodes (requires an MCP API key)       | _(simple — inline description sufficient)_                              |
 | `cold_case`         | Fetch a saved conversation by id                                                 | _(simple — inline description sufficient)_                              |
@@ -137,7 +138,8 @@ blueprint + kingpin  (once per repo: its module map and its hub ranking at one
                         commit — the two non-per-file tiers. Skip only when you
                         already know which part of the repo the question lives in.)
         ↓
-stakeout / manhunt  (locate files / symbols — omit knowledgeId to sweep ALL repos)
+stakeout / manhunt  (locate files / symbols — omit `repos` to sweep ALL repos,
+                     or name entries to sweep exactly those, in ONE call)
         ↓
 case_file                   (map ONE located file)
         ↓
@@ -153,8 +155,8 @@ is the only tool that returns verbatim source; reach for it once analysis has
 given you a `startLine`–`endLine` worth reading.
 
 **The funnel is not the whole single-repo run — it locates, it does not fold.**
-Half a single-repo budget belongs to `collateral_damage` and the tools that
-ground its hits, because the files that must change ALONGSIDE the one you found
+The fold stage of a single-repo run belongs to `collateral_damage` and the
+tools that ground its hits, because the files that must change ALONGSIDE the one you found
 are held in edges, not in text, and routinely contain none of the words that
 found the seed. See "Folding inward" below.
 
@@ -290,14 +292,16 @@ about **that layer**, never about the codebase.
 - **`shakedown` is confirmation, not discovery.** It matches text, so it is
   structurally blind to pass-throughs (a wrapper that forwards the value
   contains no matchable text) and to the same idea named differently in another
-  repo. Budget: **two patterns per repo**, then switch. Greping repo-by-repo
+  repo. When a pattern is not decisive, switch. Greping repo-by-repo
   across an org is never the right sweep.
 - **A name-mode miss is not absence.** `manhunt` `name` and `query` modes hit
   different indexes; type members, interfaces and re-exported symbols land in
   different tiers. Run the other mode before concluding anything.
-- **Omit `knowledgeId` to sweep.** `stakeout`, `manhunt`, `dragnet` and
-  `cross_repo_lookup` each search every accessible repo in ONE call. Only
-  `shakedown` and `case_file` are one-repo-per-call.
+- **`repos` is how you choose repositories.** One entry searches that repo, several
+  search exactly those, omitting it searches every accessible repo — all in ONE
+  call, each entry at its own `commitHash`. `stakeout`, `manhunt`, `cross_repo_lookup`,
+  `collateral_damage` and `dragnet` all take it. Never loop a roster one repo at a
+  time; name the set. Only `shakedown` and `case_file` are one-repo-per-call.
 - **Never enumerate from memory.** Before answering "which files / which
   repos", re-run the search that defined the set and diff it against your
   answer. Long flat lists silently lose entries.
@@ -340,7 +344,8 @@ walk.
 4. **Don't re-map a file** — `case_file` results do not change
    mid-session; keep the prior response instead of re-calling.
 5. **Anchor units to commits** — when the question concerns a specific
-   commit, pass `commitHash` (from `roll_call`) on every call, and
+   commit, carry it (from `roll_call`) on every call — `commitHash` on
+   single-repo tools, `repos[].commitHash` on `stakeout` / `manhunt` — and
    read the `commits` array on `manhunt` hits before claiming a unit
    exists or is missing at a version.
 6. **Never carry a schema over from a previous session** — schemas evolve.
@@ -363,9 +368,9 @@ walk.
    the union against your answer. Re-phrasing inside the register the question
    arrived in, and enrichment, both stay inside it. See
    "Search each REGISTER, not each phrasing".
-9. **`case_notes` at end of task** — mandatory when the
-   deployment has an MCP API key. On key-less (env-auth) deployments the
-   server rejects it: report the rejection once and continue; do not retry.
+9. **`case_notes` at end of task** — mandatory. If the server rejects it
+   because the key is not scoped to one organization, report the rejection
+   once and continue; do not retry.
 
 ## Presenting results — surface the Plumbline savings footer
 

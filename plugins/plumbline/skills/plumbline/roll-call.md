@@ -29,8 +29,9 @@ for the newest.
 - Call ONCE per session and reuse the response — the list does not change
   mid-session.
 - Do NOT loop the returned repos one at a time. `stakeout`, `manhunt`,
-  `dragnet` and `cross_repo_lookup` each sweep EVERY accessible repo in a
-  single call when `knowledgeId` is omitted.
+  `cross_repo_lookup`, `collateral_damage` and `dragnet` all take `repos`:
+  omit it and one call sweeps EVERY accessible repo, or name several entries
+  and one call sweeps exactly those, each at its own `commitHash`.
 - A stale `lastIndexedAt` means the graph predates recent work — say so rather
   than answering as if it were current.
 - THIN → an empty result means the session's org owns no indexed repositories.

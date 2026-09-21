@@ -140,9 +140,9 @@ sentence): `entrypoint` · `api` · `domain` · `orchestration` · `adapter` ·
   runs per commit and is non-fatal, so a repo can be fully indexed at the
   file tier with no module map at all. The error names the commits that DO
   have one — retry against one of those, or fall back to the file tier.
-- **One repo per call.** Unlike `stakeout` / `manhunt` / `dragnet`, omitting
-  `knowledgeId` is not a sweep — it is invalid. Loop repos deliberately, and
-  only when the question really is per-repo architecture.
+- **One repo per call.** `knowledgeId` is required, and there is no `repos`
+  set here as `stakeout` / `manhunt` have. Loop repos deliberately, and only
+  when the question really is per-repo architecture.
 - **`root` is for display, not identity.** A module is a SET of files, and it
   can span sibling directories; `root` is only their longest common prefix.
   Never treat `pathContains: <root>` as equivalent to the module's membership —

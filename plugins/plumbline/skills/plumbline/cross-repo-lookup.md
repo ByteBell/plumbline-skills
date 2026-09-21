@@ -28,7 +28,10 @@ Seed EXACTLY ONE of:
   re-exports via `EXPORTS` provenance. A barrel `index.ts` and the real defining
   file look identical to every other tool.
 
-Optional `limit` (1–100, default 20). Results are always org-scoped.
+Optional `repos` (`[{knowledgeId, commitHash?}]` — one entry restricts to that
+repo, several to exactly those, omit to sweep every accessible repo; an entry's
+`commitHash` answers as of THAT repo's snapshot), `limit` (1–100, default 20).
+Results are always org-scoped.
 
 **Harvest and loop — the intended usage.** Package rows carry the importing
 file's own `symbols`/`subpaths`, so an import edge names the internals it
@@ -58,6 +61,7 @@ Seed **exactly one** of `package` / `address` / `symbol`.
 | `symbol`           | string (opt.)    | Exported name → the file that actually DEFINES it, past barrel re-exports. |
 | `symbols`          | string[] (opt.)  | `package` mode only — narrow to files importing THESE names. |
 | `includeNamespace` | bool (opt.)      | With `symbols`: also return whole-module importers. Default true. |
+| `repos`            | array (opt.)     | `[{knowledgeId, commitHash?}]` — one entry restricts to that repo, several to exactly those, omit for all. An entry's `commitHash` answers as of that repo's snapshot. |
 | `limit`            | int 1–100 (opt.) | Default 20.                                                  |
 
 ## The three seed kinds
@@ -110,3 +114,11 @@ them.
   change you can only describe in prose (`dragnet`), or a literal string inside
   one repo (`shakedown`).
 - Next stage: `case_file` on a returned file.
+
+## Scope
+
+`repos` (optional) — `[{knowledgeId, commitHash?}]`. One entry restricts to that repository,
+several to exactly those, omitting it sweeps every accessible repo, which is the usual cross-repo
+question. Give an entry a `commitHash` to answer as of THAT repository's snapshot ("who imports this
+package, as of my base commit"); entries without one keep answering at each path's own newest.
+There is no separate single-repository parameter — a set of one already is one.
