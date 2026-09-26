@@ -58,6 +58,10 @@ const TOPICS = {
     Codex         ~/.codex/prompts/                      ~/.codex/config.toml [mcp_servers.plumbline]
 
   Update:     npm install -g github:ByteBell/plumbline-skills, then run install again
+  New URL or key:  run install again with the new --url / --key, then restart the agent. It
+              replaces the "plumbline" entry, and checks the new pair before touching anything.
+              Switching between --project and a user install: uninstall the old one first — in
+              Claude Code a project entry wins over the user entry inside that repository.
   Remove:     plumbline uninstall
 
   Errors:

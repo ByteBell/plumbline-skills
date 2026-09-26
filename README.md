@@ -23,7 +23,8 @@ plumbline install --url http://localhost:8081 --key mcp_…
 That installs into every agent it finds on your PATH, for your user — so the commands are in every
 session, in any directory; they work wherever the repository is indexed. `npm install -g` alone only
 puts the `plumbline` tool on your PATH: `plumbline install` is what adds the commands, and it copies
-them, so after updating the package run `plumbline install` again. Options:
+them, so after updating the package run `plumbline install` again. To point at a different stack or
+use a new key, run `plumbline install` again with the new `--url` / `--key` and restart the agent. Options:
 
 ```sh
 plumbline install --url … --key … --agents claude,opencode     # only these agents
