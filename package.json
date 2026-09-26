@@ -1,6 +1,6 @@
 {
   "name": "@bytebell/plumbline",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Plumbline commands for Claude Code, Codex and OpenCode — verify a change, see its blast radius, resolve an issue",
   "type": "module",
   "bin": {

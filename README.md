@@ -38,6 +38,10 @@ Then, in your agent:
 
 Restart the agent after installing so it picks up the MCP server.
 
+`plumbline help` lists everything; `plumbline help verify`, `plumbline help blast` and
+`plumbline help resolve-issue` give each command's arguments, examples, what it does and what the
+output looks like. In Claude Code, typing `/plumbline-` shows the three with their argument hints.
+
 The key is written in plain text into your agent's config, readable only by you. With `--project`,
 keep `.mcp.json` and `opencode.json` out of git.
 
