@@ -21,15 +21,17 @@ const HELP = `plumbline ${VERSION} — Plumbline commands for Claude Code, OpenC
 
   plumbline install   --url <stack url> --key <mcp_ key> [--agents claude,codex,opencode] [--project <dir>]
   plumbline uninstall                                   [--agents claude,codex,opencode] [--project <dir>]
-  plumbline help [verify | blast | resolve-issue | install]
+  plumbline help [verify | review-pr | blast | resolve-issue | repos | install]
 
 After installing, inside your agent, in a checkout of an indexed repository:
 
   /plumbline-verify [from] [to]             review a change against every caller in every indexed repo
+  /plumbline-review-pr <PR URL | #n> …      the same review for a GitHub / GitLab / Bitbucket PR
   /plumbline-blast <file | symbol | code>   what depends on this code, and what breaks if it changes
   /plumbline-resolve-issue <issue>          find the affected files, write failing tests, fix, test
 
-  Codex names them /prompts:plumbline-verify, /prompts:plumbline-blast, /prompts:plumbline-resolve-issue.
+  verify, review-pr and resolve-issue take --repos to work across repositories (plumbline help repos).
+  Codex names them /prompts:plumbline-verify, /prompts:plumbline-review-pr, and so on.
 
 Run \`plumbline help <command>\` for arguments, examples and what the output looks like.
 `;
@@ -79,12 +81,16 @@ const TOPICS = {
     <from>              <from> → HEAD
     <from> <to>         <from> → <to>
     <from>..<to>        the same, as one range
+    --repos …           review across repositories — see \`plumbline help repos\`. A repository
+                        given as api@<from>..<to> brings its own change into the same review.
 
   Examples:
     /plumbline-verify
     /plumbline-verify main
     /plumbline-verify v5.0.14 v5.0.15
     /plumbline-verify a1b2c3d..HEAD
+    /plumbline-verify main --repos web                  dependents confirmed in ../web too
+    /plumbline-verify main --repos api@v2.3.0..HEAD     this change and api's, as one review
 
   What it does:
     1. Reads the change from your checkout with git — every file, every hunk.
@@ -105,6 +111,53 @@ const TOPICS = {
   Needs: this repository indexed in Plumbline. The two commits do not need to be indexed —
   the output says how far the indexed commit is from them.
   Measured on a 15-file, 28-hunk range: about 2 minutes.
+`,
+
+  "review-pr": `/plumbline-review-pr <PR> [more PRs] [--repos …] — review a pull / merge request
+
+  Codex: /prompts:plumbline-review-pr <PR>
+
+  <PR> is one of:
+    https://github.com/<owner>/<repo>/pull/<n>               GitHub
+    https://gitlab.com/<group>/<repo>/-/merge_requests/<n>   GitLab (self-hosted too)
+    https://bitbucket.org/<ws>/<repo>/pull-requests/<n>      Bitbucket
+    #<n>                                                     a PR of this checkout's origin
+  Several PRs = one change split across repositories, reviewed together.
+
+  Examples:
+    /plumbline-review-pr #1234
+    /plumbline-review-pr https://github.com/acme/api/pull/88 https://github.com/acme/web/pull/412
+    /plumbline-review-pr https://github.com/acme/api/pull/88 --repos web
+
+  What it does:
+    1. Fetches the PR's head and its base into your checkout WITHOUT switching branches
+       (refs/plumbline/pr-<n>, deleted at the end) — forks included. The base branch comes from
+       gh / glab / the Bitbucket API; without them, the default branch (said in the output).
+    2. Runs the same review as /plumbline-verify on base..head: every hunk, every caller in every
+       indexed repository, verdicts per hunk.
+  A PR in another repository needs that repository's checkout: a sibling folder named after it,
+  or --repos <repo>=<path>. Bitbucket private repositories need BITBUCKET_TOKEN in the environment.
+
+  Output: the same GitHub-style review as verify, headed by each PR's URL and title.
+`,
+
+  repos: `--repos — work across repositories (verify, review-pr, resolve-issue)
+
+  Without --repos a command works in the repository you run it in (verify and review-pr still find
+  consumers of packages it publishes in every indexed repository).
+
+    --repos all                 every repository Plumbline has indexed
+    --repos api,web             this repository plus these
+    --repos api=~/code/api      …with its checkout somewhere else
+    --repos api@v2.3.0..HEAD    …and its own change (verify / review-pr only)
+
+  <repo> is the repository as Plumbline lists it — acme/api, or just api.
+  Its checkout is found as a sibling folder (../api) whose origin is that repository, or given with
+  =<path>. A repository with no checkout is GRAPH ONLY: searched and read through Plumbline and
+  reported, but never edited or tested — resolve-issue lists its files under "Not done".
+
+  Each repository is read at the commit its checkout stands on when that commit is indexed, else at
+  its newest indexed commit; the output says which, per repository.
 `,
 
   blast: `/plumbline-blast <target> — what depends on this code, and what breaks if it changes
@@ -150,10 +203,13 @@ const TOPICS = {
     the issue text      what is wrong, in your words or the reporter's
     a GitHub issue      https://github.com/acme/app/issues/412   or   #412   (read with the gh CLI)
     (nothing)           it asks you for the issue — the only question it asks
+    --repos …           the issue spans repositories — see \`plumbline help repos\`. The search
+                        covers all of them; tests and fixes are written in each one's checkout.
 
   Examples:
     /plumbline-resolve-issue DevTools shows the wrong action name when the path contains a space
     /plumbline-resolve-issue https://github.com/acme/app/issues/412
+    /plumbline-resolve-issue #412 --repos api,web
 
   What it does, in order:
     A. Finds every file the issue touches through the graph — the code, the payload that builds the
@@ -336,11 +392,10 @@ function codex(action, { mcp, key }) {
   return `${dir}, ${cfg}`;
 }
 
-const NAMES = {
-  claude: ["Claude Code", "/plumbline-verify /plumbline-blast /plumbline-resolve-issue"],
-  opencode: ["OpenCode", "/plumbline-verify /plumbline-blast /plumbline-resolve-issue"],
-  codex: ["Codex", "/prompts:plumbline-verify /prompts:plumbline-blast /prompts:plumbline-resolve-issue"],
-};
+const NAMES = { claude: ["Claude Code", "/"], opencode: ["OpenCode", "/"], codex: ["Codex", "/prompts:"] };
+
+// What an agent calls each installed command, from the files that ship — never a hand-kept list.
+const commandNames = (prefix) => commandFiles().map((f) => `${prefix}plumbline-${f.replace(/\.md$/, "")}`).join(" ");
 
 function help(topic) {
   if (topic === undefined) return console.log(HELP);
@@ -375,8 +430,8 @@ async function main() {
   const handlers = { claude, codex, opencode };
   for (const agent of agents) {
     const where = handlers[agent](opts.action, ctx);
-    const [name, cmds] = NAMES[agent];
-    console.log(opts.action === "install" ? `✓ ${name}: ${cmds}  (${where})` : `✓ ${name}: removed  (${where})`);
+    const [name, prefix] = NAMES[agent];
+    console.log(opts.action === "install" ? `✓ ${name}: ${commandNames(prefix)}  (${where})` : `✓ ${name}: removed  (${where})`);
   }
   if (opts.action === "install") {
     console.log(

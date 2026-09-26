@@ -1,30 +1,31 @@
 ---
-description: Verify the code change between two commits against the Plumbline graph — every hunk checked, every caller in every indexed repository
-argument-hint: "[from] [to] [--repos all | repo[=path][@from..to],…]"
+description: Review a pull / merge request (GitHub, GitLab or Bitbucket) against the Plumbline graph — several PRs across repositories are reviewed as one change
+argument-hint: "<PR URL | #number> [more PR URLs] [--repos all | repo[=path],…]"
 ---
-PLUMBLINE VERIFY — arguments: $ARGUMENTS
+PLUMBLINE REVIEW PR — arguments: $ARGUMENTS
 
-V1. FROM and TO — this repository's change. Read the arguments (after taking out --repos) as
-    two commits, tags or branch names, or one FROM..TO range. None → FROM=HEAD~1, TO=HEAD.
-    One → FROM=it, TO=HEAD. Do NOT ask the user which branch: resolve each with
-    `git rev-parse --verify <ref>^{commit}`; if one does not resolve, stop and say which.
-    Uncommitted changes are not part of the change — if `git status --porcelain` is
-    non-empty, say so in one line and continue.
-V2. THE ROSTER — which repositories this run covers. roll_call first: it lists every indexed
+P1. THE PULL REQUESTS. Every argument outside --repos is one: a URL, or #<n> for this
+    checkout's origin. None → ask the user for it; this is the only question you ask.
+    The host, from the URL's shape:
+        github.com/<o>/<r>/pull/<n>                   GitHub
+        …/<group>/<r>/-/merge_requests/<n>            GitLab (gitlab.com or self-hosted)
+        bitbucket.org/<ws>/<r>/pull-requests/<n>      Bitbucket
+    Each PR belongs to the repository in its URL. Its CHECKOUT is this one when origin is that
+    repository, else that repository's ROSTER checkout (P2); no checkout → stop for that PR and
+    say: "No local checkout of <repo> — clone it next to this one, or pass --repos <repo>=<path>."
+P2. THE ROSTER — which repositories this run covers. roll_call first: it lists every indexed
     repository. Find THIS one by `git remote get-url origin`; not listed → stop and say
     "This repository is not indexed in Plumbline — index it first."
     Without --repos the ROSTER is this repository alone. --repos may appear anywhere in the
     arguments; it is not part of anything else you read from them:
         --repos all              every repository roll_call lists
         --repos <e>,<e>,…        this repository plus these
-      e = <repo>[=<path>][@<from>..<to>]
+      e = <repo>[=<path>]
         <repo>        a roll_call repository: its full slug (acme/api) or the last segment (api).
                       One roll_call does not list → stop and say which.
         =<path>       its local checkout. Default: the sibling folder ../<last segment>, if it
                       is a git checkout whose origin is that repository. None → that repository
                       is GRAPH ONLY: searched and read through Plumbline, never edited or run.
-        @<from>..<to> that repository's own change, reviewed together with this one's as ONE
-                      change. Resolved with git in its checkout, like FROM and TO here.
     THE COMMIT of each repository: roll_call names only its newest indexed commit, but older
     ones may be indexed too, and the snapshot to read is the one its checkout stands on. When a
     checkout's HEAD is not that newest commit, DO stakeout(query=<a few words of the task>,
@@ -38,21 +39,39 @@ V2. THE ROSTER — which repositories this run covers. roll_call first: it lists
     repository: its knowledgeId and its commitHash. git runs in that repository's checkout
     (`git -C <checkout>`). Where a checkout's HEAD is not its COMMIT, `git -C <checkout> diff
     --stat <COMMIT> HEAD` lists the files that differ between the graph and the disk.
-    Only the repositories have to be indexed, not FROM or TO: the review reads each change from
-    git and the dependents from the graph, and S5 below reports how far apart they are.
-V3. GENERATED FILES ARE NOT REVIEWED. In S2 and S3, leave out lockfiles and other generated
+    Every repository a PR belongs to is on the ROSTER, --repos or not.
+P3. FETCH EACH PR WITHOUT SWITCHING ANYTHING. In its checkout (`git -C <checkout>`):
+        GitHub     git fetch origin pull/<n>/head:refs/plumbline/pr-<n>
+                   base branch: `gh pr view <url> --json baseRefName,title -q .baseRefName`
+        GitLab     git fetch origin merge-requests/<n>/head:refs/plumbline/pr-<n>
+                   base branch: `glab mr view <n> -F json` → target_branch
+        Bitbucket  curl -s https://api.bitbucket.org/2.0/repositories/<ws>/<r>/pullrequests/<n>
+                   (with -H "Authorization: Bearer $BITBUCKET_TOKEN" for a private repository)
+                   → source.branch.name, source.repository.full_name, destination.branch.name;
+                   git fetch <the source repository's clone URL> <source branch>:refs/plumbline/pr-<n>
+    No gh / glab, or the call fails → the base branch is the remote's default
+    (`git symbolic-ref --short refs/remotes/origin/HEAD`); say so in the review header.
+    Then `git fetch origin <base>`, and:
+        TO   = refs/plumbline/pr-<n>
+        FROM = `git merge-base origin/<base> refs/plumbline/pr-<n>`
+    That FROM..TO is the PR's change in that repository, exactly as its host shows it.
+P4. GENERATED FILES ARE NOT REVIEWED. In S2 and S3, leave out lockfiles and other generated
     output — package-lock.json, pnpm-lock.yaml, yarn.lock, bun.lock*, Cargo.lock, go.sum,
     poetry.lock, Gemfile.lock, composer.lock, *.min.js, *.map, dist/, build/ — with a git
     pathspec, e.g. `-- . ':!package-lock.json' ':!pnpm-lock.yaml'`. Name each one you
     left out in one line under the review header ("Not reviewed (generated): …"). A version
     change a lockfile records shows up in package.json / Cargo.toml / go.mod, which ARE reviewed.
-V4. SEVERAL CHANGES ARE ONE CHANGE. When more than one ROSTER repository carries a change,
+P5. SEVERAL CHANGES ARE ONE CHANGE. When more than one ROSTER repository carries a change,
     run S1–S3 below in EACH repository's checkout (`git -C <checkout>`), write its files as
     <repo>/<path> and its hunks as <repo>:F<n>.H<n>, and review them TOGETHER: a hunk in one
     repository is often the consumer, or the contract, of a hunk in another — the pairing is the
     finding nobody reviewing one repository can make. S4 takes each repository's COMMIT from the
     ROSTER instead of roll_call. SCOPE below is the ROSTER when --repos is given.
-V5. Run the review below with BASE = FROM and HEAD = TO.
+    Several PR URLs are one change split across repositories — this is that case.
+P6. Run the review below with BASE = FROM and HEAD = TO, per PR. The review header names each
+    PR by its URL and title instead of "HEAD → <BASE>".
+P7. When the review is written, delete the refs you made: `git -C <checkout> update-ref -d
+    refs/plumbline/pr-<n>`. Nothing else in any checkout changes.
 
 TRY TO FINISH THE REVIEW IN THE MINIMUM TOOL CALLS POSSIBLE.
 

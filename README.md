@@ -5,10 +5,14 @@ Three commands for your coding agent, backed by the **Plumbline** code knowledge
 | Command | What it does |
 | --- | --- |
 | `/plumbline-verify [from] [to]` | Reviews the change between two commits (default: your last commit) against every caller in every indexed repository. Output is a GitHub-style review. |
+| `/plumbline-review-pr <PR URL \| #n> [more PRs]` | The same review for a GitHub, GitLab or Bitbucket pull request, fetched without switching your branch. Several PRs across repositories are reviewed as one change. |
 | `/plumbline-blast <file[:lines] \| symbol \| pasted code>` | What depends on this code, and what breaks if it changes — in the shape of your IDE's Find All References. |
 | `/plumbline-resolve-issue <issue text \| issue URL>` | Finds every file the issue touches, writes failing tests first, then the fix, then runs the tests until they pass. Nothing is committed. |
 
 They work in **Claude Code**, **OpenCode** and **Codex**, with whatever model your agent runs.
+`verify`, `review-pr` and `resolve-issue` take `--repos all | api,web | api=<path>` to work across
+repositories — the search covers all of them, and edits and tests happen in each one's checkout
+(`plumbline help repos`).
 
 ## Install
 
