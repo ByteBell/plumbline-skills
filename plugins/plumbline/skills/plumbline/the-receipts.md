@@ -3,7 +3,7 @@ name: the-receipts
 description: >
   Dedicated usage skill for the `the_receipts` MCP tool — get verbatim
   source from an IR-indexed repo: a code unit's line range inline with a
-  100-line buffer, a whole file as a presigned S3 URL to download, or a
+  100-line buffer, a whole file as a signed URL to download, or a
   search inside a file. The IR-schema tool for reaching raw source.
   Read when the digest attached to its first result is not enough.
 user-invocable: false
@@ -13,15 +13,14 @@ user-invocable: false
 
 Reach the **actual source text** of a file in an IR-indexed repo. Every other
 ir\_\* tool returns analysis (summaries, signatures, line ranges) — this is the
-only one that reaches the bytes themselves. The bytes live in S3, at the
-commit-namespaced `repository/` prefix the ingestion pipeline uploaded, and
-what you get back depends on what you ask for:
+only one that reaches the bytes themselves — the commit's `repository/` tree
+exactly as the ingestion pipeline stored it — and what you get back depends on what you ask for:
 
 - **Range** (`symbol`, or `fromLine`/`toLine` — a code unit): the lines come
   back **inline**, widened by 100 lines on each side so the unit arrives with
   its imports, siblings and call sites, token-budgeted.
 - **Delivery** (no line args, no `search` — the whole file): the file is
-  **not** returned inline. You get a **presigned S3 URL**, valid 270 seconds
+  **not** returned inline. You get a **signed download URL**, valid 270 seconds
   from issue, and you download it yourself with a plain HTTP GET (no auth
   header).
 - **Search** (`search` set, and `bulk_search`): the file is scanned server-side
@@ -58,8 +57,8 @@ Two or more declarations of one name come back as a list of
 name. No match says so, and says the symbol may postdate this commit or live in
 a test file (those are not indexed).
 
-**A whole file** — no line args — is never inline. **You are given a presigned
-S3 URL and you have to download it**: `Download:` (the URL), `Expires:` (270s
+**A whole file** — no line args — is never inline. **You are given a signed
+download URL and you have to download it**: `Download:` (the URL), `Expires:` (270s
 from issue), `Size:`. GET it before it expires; an expired URL is a 403, and
 the fix is to call this tool again for a fresh one.
 
@@ -70,7 +69,7 @@ matching lines instead; the range args are ignored in that mode.
   then ask for the span by `symbol` — or by the `startLine`–`endLine` that
   `case_file`/`interrogation` reported on this commit — instead of reading blind.
 - Access is org-scoped: a `knowledgeId` outside the session's set is refused.
-- "File not found in S3" is an ingestion gap for that path at that commit, NOT
+- "File not found" is an ingestion gap for that path at that commit, NOT
   a bad path — do not retry variations.
 - **Cite what you read** as `relativePath:fromLine-toLine`, grounded in the
   returned or downloaded lines rather than the file-level summary.
@@ -119,7 +118,7 @@ the snapshot that is actually being read.
   `Lines: a-b of TOTAL`; when the token budget cuts it, a
   `More: re-call with fromLine=N` hint gives the continuation cursor.
 - **Delivery** (no line args): returns `Download:` / `Expires:` / `Size:` for
-  the file. The URL is a presigned S3 GET, valid 270 seconds; download it and
+  the file. The URL is a signed GET, valid 270 seconds; download it and
   read from the bytes. `bulk_retrieve` follows the same rule per path — line
   args → inline ranges, none → one URL each — with `ERROR:` for a path that
   is not at that commit.
@@ -143,7 +142,7 @@ the snapshot that is actually being read.
   (full or prefix) only when version-pinned.
 - **Access is org-scoped** like every ir\_\* tool: a `knowledgeId` outside the
   session's accessible set is refused — call `roll_call` for valid ids.
-- **"File not found in S3"** means that path is not in the upload for that
+- **"File not found"** means that path is not stored for that
   commit — an ingestion gap, not a bad path.
 - **Cite what you read** as `relativePath:fromLine-toLine`, grounded in the
   returned or downloaded lines rather than the file-level summary.

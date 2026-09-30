@@ -125,5 +125,5 @@ set.
   dropped from graph analysis, so `case_file` may 404 on a path `shakedown`
   greps happily. That is a known gap, not a contradiction — read such files
   with `the_receipts`.
-- First call on a repo may be slow (the snapshot is restored from S3); the rest
-  of the org then syncs in the background.
+- On S3-backed deployments the first call on a repo may be slow (the snapshot
+  is restored from S3); the rest of the org then syncs in the background.

@@ -19,9 +19,13 @@ as returned by `stakeout`/`manhunt`). Optional `commitHash`; omit for the
 newest snapshot.
 
 Returns a sticky header (`commitHash`, `commitDate`, `language`, `lineCount`,
-`tokenCount`, `purpose`, `summary`, `businessContext`) plus one item per code
-unit ordered by `startLine`: `{qualifiedName, unitKind, signature, startLine,
-endLine, summary}`.
+`tokenCount`, `totalChunks`, `purpose`, `summary`, `businessContext`) plus one
+item per code unit ordered by `startLine`: `{qualifiedName, unitKind, signature,
+startLine, endLine, summary}`. On a **big file** (`totalChunks` > 0) the header
+also carries `chunks` — every slice the graph holds the file as, with
+`chunkIndex`, `startLine`–`endLine` (file lines at this snapshot), and that
+slice's own `purpose`, `summary` and `moduleLevelCode` — and the file-level
+`purpose`/`summary` are null, because a big file's analysis lives on its chunks.
 
 - **Reach this tool through search.** The `relativePath` must come from a
   `stakeout`/`manhunt` hit or verbatim from the user — paths invented from
@@ -41,6 +45,10 @@ endLine, summary}`.
   file, and the input for `the_receipts`.
 - THIN → an empty unit map means the file was not unit-extracted, not that it is
   empty; read it with `the_receipts`.
+- BIG FILE → null `purpose`/`summary` on the header is the shape, not a gap: read
+  `chunks`. Place a line in its chunk by the chunk ranges and read THAT chunk's
+  purpose/summary/moduleLevelCode; the other chunks' purposes are the file's
+  map. The unit map below is still the whole file, in file coordinates.
 - Next stage DOWN: `interrogation` on ONE qualifiedName of interest — not on
   every unit in the file — or `the_receipts` for the verbatim source.
 
@@ -68,6 +76,22 @@ Header (sticky across pages):
   "summary": "...",
   "businessContext": "..."
 }
+```
+
+On a big file (`totalChunks` > 0) the header also has `chunks`, ordered by
+`chunkIndex`, and `purpose`/`summary` above are null:
+
+```json
+"chunks": [
+  {
+    "chunkIndex": 0,
+    "startLine": 1,
+    "endLine": 343,
+    "purpose": "<this slice's role>",
+    "summary": "<this slice's behaviour>",
+    "moduleLevelCode": "<imports and module-level statements in this slice, or null>"
+  }
+]
 ```
 
 Items — one per code unit, ordered by `startLine`:
@@ -110,5 +134,11 @@ Items — one per code unit, ordered by `startLine`:
 - **Cite line ranges.** `startLine`–`endLine` per unit is the grounding for
   any claim about the file ("the bug is in `from_input`, lines 50–68"), and
   the input for `the_receipts` when you need the verbatim source.
+- **A big file is read through its chunks.** `chunks` is the file's map: each
+  slice's range and its own analysis. A line belongs to the chunk whose
+  `startLine`–`endLine` holds it; read that chunk's `purpose`, `summary` and
+  `moduleLevelCode` for the context around it, and the other chunks' purposes
+  for the rest of the file. Units are unaffected — their spans are already file
+  coordinates, whichever chunk they sit in.
 - Next stage: `interrogation` on ONE `qualifiedName` of interest — not on
   every unit in the file — or `the_receipts` to read a unit's exact lines.
