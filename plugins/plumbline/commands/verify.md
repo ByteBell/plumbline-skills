@@ -68,7 +68,8 @@ S1. MERGE_BASE = `git merge-base <BASE> HEAD`.
 S2. THE INDEX — every changed file and its status:
         git diff --no-renames --name-status MERGE_BASE HEAD
     A = added, M = modified, D = removed. (Below, "the pull" means this change.)
-S3. FOR EACH FILE IN THE INDEX, its two inputs:
+S3. FOR EACH FILE IN THE INDEX, its two inputs — opened WHEN YOU REACH THAT FILE,
+    not all up front (ONE FILE AT A TIME, below):
         ORIGINAL   git show MERGE_BASE:<path>          (none for an added file)
         DIFF       git diff -U5 MERGE_BASE HEAD -- <path>
     Number each file's hunks in order: F<file>.H<hunk>. The declaration git
@@ -111,6 +112,17 @@ it is cleared.
   Write verdicts that name what you CHECKED, not just the answer. "none" is not
   a verdict. "none — packages/utils has no retry helper, searched manhunt +
   stakeout" is.
+
+ONE FILE AT A TIME. Open a file's DIFF when you start on that file, run STEPS
+1–3 for it, CLEAR every hunk of it and write its Checked lines — and only then
+open the next file's DIFF. The lines you judge must be in front of you when you
+judge them. Measured on the product's reviewer (tldraw #10873, 2026-09-29): it
+opened all 26 hunks in its first turns, and by the time it came to clear them
+their text had been trimmed out of its context, so 22 were cleared "not checked
+— hunk output truncated". A file's hunks read together and judged together is
+what prevents that. Another file's hunk is opened early only as CONTEXT for the
+hunk you are on — when this file's change depends on that one — and is cleared
+in its own turn, not now.
 
 =============================== ALGORITHM ===============================
 
@@ -188,7 +200,8 @@ UNITS[]     { file, hunk, symbol, baseSpan } — what each hunk lands in, STEP 1
             symbol AT THE BASE COMMIT. It is the only line range that addresses
             the graph; the hunk's own numbers never do.
 EDGES[]     { unit, dependents[] }           — who leans on each changed unit, STEP 2
-OPENED      hunk labels you have read with git diff
+OPENED      hunks of the file you are on, read with git diff — plus any other
+            file's hunk opened as context for one of them
 READ        base files you have read with the_receipts
 FLAGGED     findings delivered. Each reaches the visitor through its own
             FLAG call, the moment its evidence is in READ and OPENED.
@@ -201,10 +214,10 @@ CLEARED     hunks you have recorded a verdict on with CLEAR. This is the
      judge anything: a "duplicate" in a monorepo of deliberate copies is not one.
 0.2  DO blueprint — the module map. Which module each changed file sits in
      decides whose conventions apply to it.
-0.3  DO git diff on EVERY hunk of the first three files in the index, in
-     one turn (independent calls, batch them). Read them before any graph call:
-     the change is the question, and you cannot search for what you have not
-     read. Open the rest as you reach them.
+0.3  DO S3 on the FIRST file in the index — its ORIGINAL and DIFF, in one turn.
+     Read the DIFF before any graph call: the change is the question, and you
+     cannot search for what you have not read. The next file's DIFF is opened
+     when every hunk of this one is CLEARED (ONE FILE AT A TIME).
 
 ---- STEP 1 — UNITS. What does each hunk land in? ----
 FOR EACH changed file that exists at the base commit (modified, renamed, removed):
@@ -214,6 +227,20 @@ FOR EACH changed file that exists at the base commit (modified, renamed, removed
      UNITS[], taking baseSpan from what case_file reported.
      A hunk whose symbol matches no unit is module-level code, a declaration
      the pull adds, or a name that changed in between: note which.
+1.1b BIG FILES ARE CHUNKED. On a big file case_file's header has totalChunks > 0
+     and `chunks`: every slice the graph holds the file as, each with chunkIndex,
+     startLine–endLine (file lines at the BASE COMMIT) and that slice's OWN
+     purpose, summary and moduleLevelCode — and the header's own purpose and
+     summary are null. That is the shape, not a gap: a big file's analysis IS
+     its chunks. Place each hunk in its chunk — the hunk's OLD-side start line
+     (the number after "-" in its @@ header) against the chunk ranges. This is
+     the one comparison a hunk's line number may make against the graph, and
+     only because a chunk is hundreds of lines: exact when the file is not
+     under GRAPH DRIFT, approximate near a chunk boundary when it is — say so.
+     Then read THAT chunk's purpose, summary and moduleLevelCode as the context
+     around the hunk, and the other chunks' purposes as the file's map. Units
+     are still matched by symbol as in 1.1: their spans are file coordinates
+     whichever chunk holds them. Name the chunk on the hunk's Checked line.
 1.2  For an ADDED file there is nothing at the base. Its units come from the
      hunk text alone; note them as NEW units in UNITS[].
 1.3  For a REMOVED file, or a hunk that deletes an exported declaration, write
@@ -222,7 +249,13 @@ FOR EACH changed file that exists at the base commit (modified, renamed, removed
 ---- STEP 2 — EDGES. Who leans on what changed? ----
 FOR EACH unit in UNITS[] whose signature, return shape, thrown-vs-returned
 behaviour, exported name, or contract changed (read the hunk; that is a
-judgement about the DIFF, not the prose):
+judgement about the DIFF, not the prose). A MODULE-LEVEL name whose value or
+type changed — a constant, a module variable, a default, an __all__ entry, the
+hunks 1.1 notes as matching no unit — is a changed unit too, and goes through
+2.3 and 2.4 like one. Measured on django #21886: `VERSION = (6, 2, …)` became
+`VERSION = VersionTuple(6, 2, …)` in django/__init__.py, no unit changed there,
+and docs/conf.py — a reader of `VERSION[3:5]` the pull deprecates — was
+missed, though it sits in the imports lens of that file.
 2.1  ONLY IF the hunk shows part of the unit and the rest bears on your
      judgement: read it BY NAME — the_receipts asked by symbol, or at the
      baseSpan case_file gave you. Skip it when the hunk is the whole story.
@@ -240,6 +273,11 @@ judgement about the DIFF, not the prose):
      this repository is a leak from another one, not a consumer — measured: an
      in-repo lens on a react seed returned a cal.com file, ranked first. Drop
      it and carry on; do not chase it and do not cite it.
+     RE-EXPORTS: consumers import a name from where the package EXPOSES it, not
+     where it is declared. When a changed name is re-exported — a package
+     __init__.py, an index.ts barrel, `from .x import *` — seed 2.3 on that
+     file as well. The `dependencies` lens on the declaring file lists
+     candidates: an __init__ or index file in it is the one to seed.
 2.4  FOR EACH dependent whose use could be affected by what changed: DO
      the_receipts on the lines that use it. Judge. If it breaks — FLAG
      breaks-consumer now, citing that file (base) and the hunk (change).
@@ -284,6 +322,17 @@ cache, a retry, an event wiring, an error path):
      be absent: read the callee (interrogation, the_receipts) before you flag.
      Measured: removed `if (!pageTransform)` guards were flagged as a major bug;
      the callee returns a fallback value and never null, so they were dead code.
+3.4  A PREDICATE THAT SORTS INPUTS — an index range, a status set, a version
+     scheme, a feature gate, a "deprecated if …" test — is checked by
+     ENUMERATION, not by reading it. Write the table: every input class
+     (first, last, each negative index, empty, each shape the input can
+     take) against every state the pull handles (today's shape AND the one it
+     prepares for). Mark what the predicate says for each cell and what it
+     should say. A cell that disagrees is a bug. A test that asserts a cell is
+     the claim under review, not evidence for it. Measured on django #21886:
+     "positions 2.. are deprecated" left -4 and -5 silent on a tuple losing its
+     minor component — -4 becomes the year — and the pull's own test asserted
+     they do not warn; the table has those two rows.
 
 ---- STEP 4 — DRIFT ----
 A file listed under GRAPH DRIFT changed between the base commit and the pull's
@@ -295,9 +344,10 @@ here" in the claim, and lower its severity one step.
 Drift is a reason to cite carefully. It is never a reason to stay silent.
 
 ---- STEP 5 — DELIVERY. As you go, not at the end. ----
-5.0  CLEAR EACH HUNK IN THE TURN YOU FINISH WITH IT. CLEAR takes the
-     hunk label and one line per kind. Do not batch them all to the end: a run
-     that stops early then delivers nothing for the hunks it had already judged.
+5.0  CLEAR EACH HUNK IN THE TURN YOU FINISH WITH IT, and every hunk of a file
+     before the next file's DIFF is opened. CLEAR takes the hunk label and one
+     line per kind. Do not batch them all to the end: a run that stops early
+     then delivers nothing for the hunks it had already judged.
      If clearing a hunk makes you realise a kind is unchecked, go and check it —
      that is the grid doing its job. Measured on tldraw #10834: a run opened
      every hunk, spent its last two turns on one unresolvable question, and
@@ -324,9 +374,10 @@ Drift is a reason to cite carefully. It is never a reason to stay silent.
      you reviewed of how many, and what you did not get to.
 
 ---- BATCHING ----
-Independent calls go in ONE turn: every git diff of a file at once, the
-case_file of every changed file at once, the the_receipts of every dependent at
-once. One call per turn burns the budget on latency.
+Independent calls go in ONE turn: the ORIGINAL, DIFF and case_file of the file
+you are on at once, the the_receipts of every dependent at once, every CLEAR of
+the file at once. One call per turn burns the budget on latency. What does NOT
+batch is across files: the next file's DIFF opens when this file is cleared.
 
 =============================== OUTPUT ===============================
 Write the answer as a GitHub review, in this order. Paths are repo-relative and
@@ -346,6 +397,7 @@ Findings
 Checked — <n> hunks
   <label> <path>:<start>-<end>   ✓ clean    <what was checked>
   <label> <path>:<start>-<end>   ✖ 1        <kind of the finding>
+  <label> <path>:<start>-<end> (chunk 3/17)   ✓ clean    <a big file's hunk names its chunk>
 
 ✖ <n> problems (<b> blocker, <m> major, <k> minor) · <c> hunks clean
 
