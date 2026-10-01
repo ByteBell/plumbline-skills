@@ -99,8 +99,8 @@ review.swap(
 );
 
 // The commands START FROM THE SEEDING STAGE: every file is a seed, seeded before any judgement about
-// it. The service prompt seeds only the units whose signature it judged to have changed (2.3); a file
-// that judgement skips is a file whose consumers nobody reads.
+// it. The service prompt folds each file when its turn comes (2.3); the commands fold every seed up
+// front — a TARGET's unchanged files included — and 2.3 then reads the rows SEEDING wrote.
 review.swap(
   `---- STEP 0 — GROUND ----`,
   `---- SEEDING — where this run starts. EVERY file is a seed. ----
@@ -127,17 +127,20 @@ SD4. ASSERT before STEP 0: seeds seeded + NEW seeds == |SEEDS[]|. A seed with no
 ---- STEP 0 — GROUND ----`,
 );
 review.swap(
-  `EDGES[]     { unit, dependents[] }           — who leans on each changed unit, STEP 2`,
-  `EDGES[]     { seed, dependents[] }           — who leans on each seed file. Written at SEEDING; STEP 2 reads it`,
+  `EDGES[]     { path, lens, direction, via, verdict } — every file the graph links
+            to the file you are on, and what the pair check concluded, STEP 2`,
+  `EDGES[]     { seed, path, lens, direction, via, verdict } — every file the graph
+            links to each seed. Written at SEEDING; STEP 2's pair check fills in
+            the verdict`,
 );
 review.swap(
-  `2.3  DO collateral_damage(relativePath, lens=['imports','callers','contracts','types'])
-     — who depends on this file.`,
-  `2.3  EDGES[] ALREADY HOLDS WHO DEPENDS ON THIS FILE — SEEDING ran
-     collateral_damage on every seed. Read this file's rows now, for EVERY
-     changed file and not only where a signature changed; call it again here
-     only for a file SEEDING could not know of (a re-export file, below).
-    `,
+  `2.3  FOLD THE SEED. DO collateral_damage(relativePath, lens=['imports',
+     'callers','dependencies','contracts','types','surfaces'], limit=100) —
+     when you start on the file, beside 1.1: it takes the path, not case_file's
+     answer.`,
+  `2.3  EDGES[] ALREADY HOLDS THIS FILE'S ROWS — SEEDING folded every seed through
+     these six lenses. Read them now; call collateral_damage again here only
+     for a file SEEDING could not know of (a re-export file, below).`,
 );
 
 await Bun.write(
@@ -365,8 +368,10 @@ many.swap(
      them and from nothing else.`,
 );
 many.swap(
-  `5.6  Nothing left to confirm: say so in one sentence and make no further calls.`,
-  `5.6  Nothing left to confirm: PHASE A is done. Go to PHASE B.`,
+  `5.6  Nothing left to confirm AND every LIST repository has been through 3.3, 3.4
+     and STEP 4: say so in one sentence and make no further calls.`,
+  `5.6  Nothing left to confirm AND every LIST repository has been through 3.3, 3.4
+     and STEP 4: PHASE A is done. Go to PHASE B.`,
 );
 
 await Bun.write(

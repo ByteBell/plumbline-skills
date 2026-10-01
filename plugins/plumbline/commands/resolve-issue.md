@@ -107,6 +107,10 @@ KEY[]      { identifier, probes_done[] }   the defect's own identifiers, STEP 3
 SEEN       every path ANY call returned. Append, never prune.
 TRACED     { path, lenses } — one entry per collateral_damage call you issued
            and read. A row in another call's output is NOT a trace.
+SEEDS      the files where the change is actually MADE: the CONFIRMED VIOLATOR
+           and OWNER files a search found. Picked at 4.9, each folded there.
+PLAN       the change plan — 3 to 6 sentences, written at 4.9: what is wrong,
+           what changes, what kinds of files must follow.
 CONFIRMED  { path, role VIOLATOR|OWNER|EVIDENCE, why } — files READ at STEP 4.
            THIS IS THE ANSWER, and the only one. Each entry reaches the visitor
            through its own confirm_file call at 4.6, as you make it.
@@ -133,6 +137,9 @@ FLOW[]     { from, to, effect } — the chain, in the order the behaviour RUNS.
      than an error, indistinguishable from the file not existing.
 0.3  DO rap_sheet(knowledgeId) — one brief saying
      what this repository is FOR. Read it before you word a single search.
+     If it carries no description at this commit, 0.4's module map is your
+     ground instead: an undescribed repository is still the one this QUESTION
+     is about, and STEP 0 passes on the map.
 0.4  DO blueprint -> the module map: every module, its role, its root, what it
      depends on. Follow pagination.hasNextPage; one page of a monorepo is not its
      architecture.
@@ -166,6 +173,28 @@ SHARE NO HIT; the union was 7 of 11.
      ON FAIL -> you have written one register four times, in one subsystem's
      vocabulary. That is the commonest way this step is skipped while looking
      done. Re-word against the module map from 0.4.
+
+---- STEP 1b — GREP. Only where your tools include jurisdiction AND lineup. ----
+Where they do not, skip this step: 3.3's text probe is the grep of this run.
+1b.1 DO jurisdiction(task = the QUESTION, verbatim). The repository is applied
+     for you; the call sets the route lineup greps — this repository.
+1b.2 DO lineup(pattern) with SEVERAL different patterns for the behaviour: at
+     least one per register in REG[], in this repository's own vocabulary — its
+     rap_sheet and module map name it. lineup greps the repository and a
+     classifier keeps the hit files that take part in the QUESTION. It hands
+     back only the best few NEW files per call, so READ ITS HEADER after every
+     call and act on what it reports:
+       · more kept files are held back -> DO lineup again with the SAME
+         pattern, and repeat until none are held back. Those files are already
+         judged, so a repeat costs nothing.
+       · the pattern matched files but kept few or none -> repeat it ONCE with
+         threshold = 0.4. Leave threshold out otherwise.
+1b.3 SEEN += every row. A row is a CANDIDATE: it is READ at STEP 4 like any
+     other path, highest p first, and it is folded at 4.9 only if that read
+     makes it a SEED. The tool's own header says to fold every row at once; on
+     this run the fold waits for the read.
+     Grep finds only the files that share the QUESTION's words. STEPS 2 and 3
+     find the rest, and run whatever lineup returned.
 
 ---- STEP 2 — SEARCH EACH REGISTER ----
 FOR EACH r IN REG[]:
@@ -203,8 +232,9 @@ and their results routinely do not overlap at all.
      members. It does NOT return where the value is read.
 3.2  PROBE 2 — WIRED. DO collateral_damage(relativePath=<the file that declares
      or resolves it>, lens=['imports','dependencies','contracts','types']) on the
-     first call per seed. Those are the four IN-REPO lenses and they are the ones
-     this page may use.
+     first call per file. This is the DISCOVERY fold — four lenses, to find
+     files. The full fold, with `callers` and `surfaces` and a verdict on every
+     row, is 4.9's, on the SEEDS.
      Read `direction` on every row: three of them walk DOWNSTREAM, `dependencies`
      alone walks UPSTREAM — what the seed READS, which usually carries the change
      first. Every narrowed call keeps `dependencies`; dropping it is not a
@@ -288,6 +318,34 @@ and their results routinely do not overlap at all.
      its confirm_file call.
 4.8  Ruling a file out requires verbatim source. Running out of calls is not a
      verdict — but an unread file is not an answer either.
+4.9  SEEDS, PLAN, BLAST RADIUS. A loop, not one call.
+     PICK. The SEEDS are the files where the change is actually MADE: the
+     CONFIRMED VIOLATOR and OWNER files, as many as it takes. EVIDENCE grounded
+     a verdict; it is not a seed. Nor is a file that entered through a fold,
+     whatever its role.
+     PLAN. When you have the seeds, write the CHANGE PLAN in 3 to 6 sentences:
+     what is wrong, what changes, and what KINDS of files must follow. It is
+     the yardstick for every row below.
+     FOLD. FOR EACH seed not yet folded: collateral_damage(relativePath=<the
+     seed>, lens=['imports','callers','dependencies','contracts','types',
+     'surfaces'], limit=100). TRACED += the call, SEEN += its rows. Follow
+     pagination.hasNextPage to the last page — but a result ending
+     "…[truncated]" lost its tail, and its next page skips what was cut: repeat
+     THAT call one lens at a time.
+     The fold reaches declarations, barrels and call sites, which share no
+     vocabulary with your phrases and so are invisible to stakeout however
+     often you run it.
+     DROP the test, doc, example and config rows, unless the QUESTION mentions
+     them (6.3).
+     PAIR CHECK. Judge each row left AS A PAIR: the seed's source you read;
+     the linked file's own lines (the_receipts — the read that also lets you
+     confirm it); and the relation the graph reported between the two — its
+     lens, direction, `via` and strength. Does the PLAN reach this file THROUGH
+     THAT RELATION? Strongest relation first. Reached -> classify and confirm
+     it (4.5, 4.6). Not reached -> RULED_OUT, in one line.
+     DO NOT GO FURTHER OUT. One hop from a seed is the blast radius: a file the
+     fold reached is judged, never folded in turn.
+     ASSERT ON EXIT OF STEP 4: every SEED has its fold in TRACED.
 
 ---- STEP 5 — THE FLOW. What affects what. ----
 The file list says WHERE the behaviour lives. It does not say how the behaviour
@@ -341,16 +399,15 @@ are named, and a chain drawn at the end is a chain drawn from memory.
 6.1  The change set is your CONFIRM, PROPOSE and FLOW lines. PHASE B works from
      them and from nothing else.
 6.2  Spend what is left on the gaps, in this order: a hole in the chain (5.5); a
-     file read and judged in but never confirmed (4.6); a confirmed file with no
-     edge (5.1); a register never searched (2.4); a probe never made (3.4); a
+     file read and judged in but never confirmed (4.6); a seed never folded
+     (4.9); a confirmed file with no edge (5.1); a register never searched (2.4); a probe never made (3.4); a
      module root never grepped (3.3); then the strongest paths in SEEN you never
      read, through 4.1 and 4.2. An unread path is not a weak answer, it is none.
-6.3  A change set is not only implementation. The test that asserts the old
-     behaviour, the guide that documents it, the example that demonstrates it, the
-     fixture that encodes it — each changes when the behaviour changes, and where
-     the QUESTION asks what the documented contract IS, the documentation is the
-     answer and is confirmed first. Exclude only what nobody edits by hand: build
-     output, dependency directories, generated files.
+6.3  THE ANSWER IS SOURCE. Test, doc, example and config files are EXCLUDED —
+     not confirmed, however closely they match — UNLESS the QUESTION itself
+     mentions them. Where it does — it asks for the tests, or asks what the
+     documented contract IS — the kind it names is in, and only that kind. Build
+     output, dependency directories and generated files are excluded always.
 6.4  LIST_CAP = 30 confirmed files; a confirm past it is refused. Confirm
      the strongest first.
 6.5  Nothing left to confirm AND the chain closes: PHASE A is done. Go to PHASE B.
@@ -428,6 +485,9 @@ from the symbol tier (0 in the true answer), 7 from the edge tier (0), and 8 tru
 files from the text tier. Whichever tier you stop at is the answer you get.
 
 ---- STATE ----
+LIST       { repo, why } — the repositories this QUESTION can involve, written
+           at 0.3 BEFORE any search, one line of reasoning each. FIXED from
+           then on: nothing a search returns takes a repository off it.
 REG[]      { name, phrase, hits[] }            one per register, built at STEP 1
 SWEPT      set of registers actually searched. A register enters SWEPT
            only after a stakeout carrying THAT register's phrase INTO that repo,
@@ -436,8 +496,12 @@ KEY[]      { identifier, probes_done[], roots_grepped[] }  STEP 3
 SEEN       every "<repo>/<path>" ANY call returned. Append, never prune.
 TRACED     { repo, path } — one entry per collateral_damage call you issued and
            read. A row in another call's output is NOT a trace.
-FOLDED     files you ran collateral_damage FROM. Every CONFIRMED file ends up
-           here; 4.7 is the loop that puts it there.
+SEEDS      { repo, path } — the files where the change is actually MADE: the
+           CONFIRMED VIOLATOR and OWNER files a search found. Picked at 4.7.
+PLAN[]     one per repository that has a seed — 3 to 6 sentences: what is
+           wrong, what changes, what kinds of files must follow. Written at 4.7.
+FOLDED     seeds you ran the full fold FROM. Every SEED ends up here; 4.7 is the
+           loop that puts it there.
 CONFIRMED  { repo, path, role VIOLATOR|OWNER|EVIDENCE, why } — files READ at STEP 4.
            THIS IS THE ANSWER, and the only one. Each entry reaches the visitor
            through its own confirm_file call at 4.6, as you make it.
@@ -474,12 +538,25 @@ FLOW[]     { from, to, effect } — the chain, in the order the behaviour RUNS,
      The rows differ, and one repository's commit passed to another answers at a
      snapshot that does not exist: it comes back a CLEAN ABSENCE,
      indistinguishable from "no such file" and silently unrecoverable.
-0.3  DO rap_sheet once per roster repository — ~150 tokens saying what each one is
-     FOR. STEP 1's repos[] is computed from it.
-     RANK, NEVER EXCLUDE. A repository whose brief reads wrong can still hold the
-     other half of the contract.
-0.4  MODULE ROOTS ARE PER REPOSITORY, and you buy them only where you need them.
-     For any repository that scores at STEP 2, DO blueprint(knowledgeId, and that
+0.3  REPOSITORIES. DO rap_sheet for EVERY roster repository, with its knowledgeId
+     and that row's commit, and read what each one does. Where a repository has
+     no description at its commit, DO blueprint for it and read its module map
+     instead: a repository is never left out because nothing described it.
+     THEN, BEFORE ANY SEARCH, WRITE THE LIST: the repositories this QUESTION can
+     involve, with one line of reasoning each. Leave a repository out ONLY IF
+     what you read shows it clearly cannot be involved. A brief that merely
+     reads off-topic is not that — such a repository can still hold the other
+     half of the contract.
+     THE LIST IS FIXED. A search at STEP 2 or 3.1 already reaches the whole
+     roster in one call; what the LIST governs is the work that opens ONE
+     repository — 3.3's fold, 3.4's text probe, STEP 4's reads. Every LIST
+     repository gets all three, and the run is not finished until each has. A
+     repository stays on the LIST when a first search there finds nothing, and
+     when another repository already looks like the whole answer.
+     Measured on the strategy this step comes from: with no fixed list, a run
+     whose answer spanned five repositories searched one.
+0.4  MODULE ROOTS ARE PER REPOSITORY, and 3.4's text probe is scoped by them.
+     For every repository on the LIST, DO blueprint(knowledgeId, and that
      row's commit) -> its module map: every module, its role, its root. Follow
      pagination.hasNextPage; one page of a monorepo is not its architecture.
      WRITE THE ROOTS DOWN; STEP 3's text probe iterates them and gets its scoping
@@ -533,6 +610,30 @@ lens 0. The three that scored SHARE NO HIT; their union was 7 of 11.
      that owner FEELS like completing this step. It is skipping it. The more
      obviously one repository owns a behaviour, the more certainly the OTHER
      implementations of it are the ones you have not thought of.
+
+---- STEP 1b — GREP. Only where your tools include jurisdiction AND lineup. ----
+Where they do not, skip this step: 3.4's text probe is the grep of this run.
+1b.1 DO jurisdiction(task = the QUESTION, verbatim). The roster is applied for
+     you. It answers with a ROUTE: a lane, and the repositories lineup greps.
+     READ THE ROUTE AGAINST THE LIST. A LIST repository that is not on it gets
+     no lineup — its grep is 3.4's text probe — and it stays on the LIST.
+1b.2 DO lineup(pattern) with SEVERAL different patterns for the behaviour: at
+     least one per register in REG[], each in the vocabulary of the
+     repositories it is aimed at. lineup greps every ROUTE repository and a
+     classifier keeps the hit files that take part in the QUESTION. It hands
+     back only the best few NEW files per call, so READ ITS HEADER after every
+     call and act on what it reports:
+       · more kept files are held back -> DO lineup again with the SAME
+         pattern, and repeat until none are held back. Those files are already
+         judged, so a repeat costs nothing.
+       · the pattern matched files but kept few or none -> repeat it ONCE with
+         threshold = 0.4. Leave threshold out otherwise.
+1b.3 SEEN += every row, `kept` and `quota` alike. A row is a CANDIDATE: it is
+     READ at STEP 4 like any other path, highest p first, and it is folded at
+     4.7 only if that read makes it a SEED. The tool's own header says to fold
+     every row at once; on this run the fold waits for the read.
+     Grep finds only the files that share the QUESTION's words. STEPS 2 and 3
+     find the rest, and run whatever lineup returned.
 
 ---- STEP 2 — SEARCH EACH REGISTER ACROSS THE WHOLE ROSTER ----
 FOR EACH r IN REG[]:
@@ -591,10 +692,9 @@ their results routinely do not overlap at all.
 3.3  PROBE 2 — WIRED. DO collateral_damage(relativePath=<a file that declares or
      resolves it>, knowledgeId=<its repo>, that row's commit,
      lens=['imports','dependencies','contracts','types']) on the first call per
-     seed. Of the seven lenses the tool offers, those four are the ones that
-     cannot leave one repository. The other three — packages, surfaces, keywords
-     — rank rows from every repository the key opens, on this roster or not. Do
-     not ask for them: a path only they returned is a path this run may not name.
+     file. This is the DISCOVERY fold — four lenses, to find files. The full
+     fold, with `callers` and `surfaces` and a verdict on every row, is 4.7's,
+     on the SEEDS.
      Read `direction` on every row: three walk DOWNSTREAM, `dependencies` alone
      walks UPSTREAM — what the seed READS, which usually carries the change first.
      Every narrowed call keeps `dependencies`; dropping it is not a narrowing, it
@@ -606,15 +706,17 @@ their results routinely do not overlap at all.
      SEED THE SHARED CORE, NOT THE ADAPTER YOU FOUND FIRST. Adapter packages have
      no edges to each other, so a fold from one reaches none of the rest; the core
      they all import does.
-     THE EDGE STOPS AT THE REPOSITORY BOUNDARY. No lens crosses between roster
-     repositories on this surface. The roster is what crosses it: a behaviour you
+     THE EDGE STOPS AT THE REPOSITORY BOUNDARY. None of these four lenses crosses
+     between roster repositories. The roster is what crosses it: a behaviour you
      confirm in one repository is a phrase to sweep into the others at STEP 2, and
      a filename you confirm in one is a name to sweep at 3.1.
      If the defect is that call sites BYPASS a resolver, what this probe returns
      are the files that already do it RIGHT — the complement of the answer.
 3.4  PROBE 3 — READ. DO shakedown(pattern=<identifier>, knowledgeId=<repo>, that
      row's commit, pathContains=<one module root from 0.4>) — ONCE PER MODULE
-     ROOT, IN EVERY REPOSITORY THAT SCORED AT STEP 2.
+     ROOT, IN EVERY REPOSITORY ON THE LIST. In one where no search has landed
+     yet, word the pattern in THAT repository's own vocabulary — its rap_sheet
+     and module map name it — not in the identifier another repository uses.
      THE CAP IS THE TRAP. maxMatches DEFAULTS TO 50 and is 200 at most, so pass it
      — a name on a shared model exceeds even 200 repository-wide, and a call that
      leaves it unset is capped at a quarter of that. The header then prints
@@ -687,15 +789,37 @@ their results routinely do not overlap at all.
      ALTERNATE ACROSS REPOSITORIES — the best file of each, then the second of
      each. Confirming one repository out before starting the next hands it the
      whole head of the list.
-4.7  FOLD FROM EVERY CONFIRMED FILE. A loop, not one call.
-     FOR EACH f IN CONFIRMED (VIOLATOR, OWNER and EVIDENCE alike), f NOT IN
-     FOLDED: collateral_damage(relativePath=f.path, knowledgeId=f.repo, that
-     row's commit). Add f to FOLDED, returns to SEEN.
+4.7  SEEDS, PLAN, BLAST RADIUS. A loop per repository, not one call.
+     PICK. A repository's SEEDS are the files where the change is actually
+     MADE: its CONFIRMED VIOLATOR and OWNER files, as many as it takes.
+     EVIDENCE grounded a verdict; it is not a seed. Nor is a file that entered
+     through a fold, whatever its role.
+     PLAN. When a repository has its seeds, write its CHANGE PLAN in 3 to 6
+     sentences: what is wrong, what changes, and what KINDS of files must
+     follow. It is the yardstick for every row below.
+     FOLD. FOR EACH seed f NOT IN FOLDED: collateral_damage(relativePath=
+     f.path, knowledgeId=f.repo, that row's commit, lens=['imports','callers',
+     'dependencies','contracts','types','surfaces'], limit=100). Add f to
+     FOLDED, its rows to SEEN. Follow pagination.hasNextPage to the last page —
+     but a result ending "…[truncated]" lost its tail, and its next page skips
+     what was cut: repeat THAT call one lens at a time.
      One fold off one seed is a single point of failure: everything it reaches is
      a neighbour of ONE file. It also reaches declarations, barrels and call
      sites, which share no vocabulary with your phrases and so are invisible to
-     stakeout however often you run it.
-     ASSERT ON EXIT OF STEP 4: FOLDED == CONFIRMED.
+     stakeout however often you run it. A `surfaces` row can sit in ANOTHER
+     roster repository — the far side of a route or event. It carries its own
+     knowledgeId and commit: read it there.
+     DROP the test, doc, example and config rows, unless the QUESTION mentions
+     them (5.4).
+     PAIR CHECK. Judge each row left AS A PAIR: the seed's source you read;
+     the linked file's own lines (the_receipts — the read that also lets you
+     confirm it); and the relation the graph reported between the two — its
+     lens, direction, `via` and strength. Does the PLAN reach this file THROUGH
+     THAT RELATION? Strongest relation first. Reached -> classify and confirm
+     it (4.5, 4.6). Not reached -> RULED_OUT, in one line.
+     DO NOT GO FURTHER OUT. One hop from a seed is the blast radius: a file the
+     fold reached is judged, never folded in turn.
+     ASSERT ON EXIT OF STEP 4: every SEED is in FOLDED.
 4.8  RULING OUT REQUIRES VERBATIM SOURCE. "I did not get to it", "the summary
      looked wrong", "the search came back empty" and "its repository felt
      off-topic" are NOT rulings — each leaves the file a CANDIDATE. Running out of
@@ -707,21 +831,23 @@ their results routinely do not overlap at all.
 5.1  The change set is your CONFIRM, PROPOSE and FLOW lines. PHASE B works from
      them and from nothing else.
 5.2  Spend what is left on the gaps, in this order: a file read and judged in but
-     never confirmed (4.6); a (register, repo) pair never swept (2.7); a probe
-     never made (3.5); a module root never grepped (3.4); then the strongest paths
-     in SEEN you never read, through 4.1 and 4.2. An unread path is not a weak
-     answer, it is none.
+     never confirmed (4.6); a seed never folded (4.7); a LIST repository that
+     has not had its text probe and a read (0.3); a (register, repo) pair never
+     swept (2.7); a
+     probe never made (3.5); a module root never grepped (3.4); then the
+     strongest paths in SEEN you never read, through 4.1 and 4.2. An unread path
+     is not a weak answer, it is none.
 5.3  A SWEPT REPOSITORY HOLDING NOTHING IS A GAP, not a verdict — read its best
      candidate before confirming an Nth file from ground already covered.
-5.4  A change set is not only implementation. The test that asserts the old
-     behaviour, the guide that documents it, the example that demonstrates it, the
-     fixture that encodes it — each changes when the behaviour changes, and where
-     the QUESTION asks what the documented contract IS, the documentation is the
-     answer and is confirmed first. Exclude only what nobody edits by hand: build
-     output, dependency directories, generated files.
+5.4  THE ANSWER IS SOURCE. Test, doc, example and config files are EXCLUDED —
+     not confirmed, however closely they match — UNLESS the QUESTION itself
+     mentions them. Where it does — it asks for the tests, or asks what the
+     documented contract IS — the kind it names is in, and only that kind. Build
+     output, dependency directories and generated files are excluded always.
 5.5  LIST_CAP = 30 confirmed files across all repositories; a confirm past
      it is refused. Confirm the strongest first.
-5.6  Nothing left to confirm: PHASE A is done. Go to PHASE B.
+5.6  Nothing left to confirm AND every LIST repository has been through 3.3, 3.4
+     and STEP 4: PHASE A is done. Go to PHASE B.
 
 RUN CONDITION: STEP 0 must pass before any search.
 

@@ -214,11 +214,15 @@ are flagging. So a changed file whose graph context has drifted blocks none of
 them — keep reviewing it.
 
 ---- STATE ----
+PLAN        one change plan per file — 3 to 6 sentences, written at 1.0 when you
+            start on the file. Every file STEP 2 links to it is judged against it.
 UNITS[]     { file, hunk, symbol, baseSpan } — what each hunk lands in, STEP 1.
             baseSpan is the startLine–endLine case_file reported for that
             symbol AT THE BASE COMMIT. It is the only line range that addresses
             the graph; the hunk's own numbers never do.
-EDGES[]     { seed, dependents[] }           — who leans on each seed file. Written at SEEDING; STEP 2 reads it
+EDGES[]     { seed, path, lens, direction, via, verdict } — every file the graph
+            links to each seed. Written at SEEDING; STEP 2's pair check fills in
+            the verdict
 OPENED      hunks of the file you are on, read with git diff — plus any other
             file's hunk opened as context for one of them
 READ        base files you have read with the_receipts
@@ -259,7 +263,20 @@ SD4. ASSERT before STEP 0: seeds seeded + NEW seeds == |SEEDS[]|. A seed with no
      cannot search for what you have not read. The next file's DIFF is opened
      when every hunk of this one is CLEARED (ONE FILE AT A TIME).
 
----- STEP 1 — UNITS. What does each hunk land in? ----
+---- STEP 1 — SEED. Every changed file is a seed: the pull already made the change. ----
+Nothing is searched for. A change set is found by first finding where the
+change is made, and the pull hands you those places — its files. What is left
+to find is what the change REACHES, and STEP 2 walks it from each one.
+1.0  WRITE THE CHANGE PLAN when you start on a file, from its hunks alone. 3 to
+     6 sentences: what was wrong or missing before the pull; what this file's
+     lines change about it; and what KINDS of files must follow — the callers
+     of a signature that moved, the readers of a value whose shape changed, the
+     implementers of a type, the far side of a route or event. The pull's
+     description, where you have one, is the author's account; the plan is
+     yours, read off the lines. It is the yardstick for STEP 2: a linked file
+     is judged against the plan, never against its path or its summary.
+     EVERY FILE IS FOLDED, whatever the plan says. A change that looks
+     cosmetic or internal is judged on the rows 2.3 returns, never before it.
 FOR EACH changed file that exists at the base commit (modified, renamed, removed):
 1.1  DO case_file(relativePath) at the base commit — every unit of the file with
      its real startLine–endLine THERE. Match each hunk to its unit BY THE
@@ -286,16 +303,19 @@ FOR EACH changed file that exists at the base commit (modified, renamed, removed
 1.3  For a REMOVED file, or a hunk that deletes an exported declaration, write
      the deleted names down: STEP 2 asks who still calls them.
 
----- STEP 2 — EDGES. Who leans on what changed? ----
+---- STEP 2 — BLAST RADIUS. What does the change reach? ----
+2.3 and 2.4 run ONCE FOR EACH FILE, whatever in it changed: a behaviour change
+behind an unchanged signature still reaches its callers. 2.1, 2.2 and 2.5 run
 FOR EACH unit in UNITS[] whose signature, return shape, thrown-vs-returned
 behaviour, exported name, or contract changed (read the hunk; that is a
 judgement about the DIFF, not the prose). A MODULE-LEVEL name whose value or
 type changed — a constant, a module variable, a default, an __all__ entry, the
-hunks 1.1 notes as matching no unit — is a changed unit too, and goes through
-2.3 and 2.4 like one. Measured on django #21886: `VERSION = (6, 2, …)` became
-`VERSION = VersionTuple(6, 2, …)` in django/__init__.py, no unit changed there,
-and docs/conf.py — a reader of `VERSION[3:5]` the pull deprecates — was
-missed, though it sits in the imports lens of that file.
+hunks 1.1 notes as matching no unit — is a changed unit too: it belongs in the
+PLAN, and its readers are in the fold like any unit's. Measured on django
+#21886: `VERSION = (6, 2, …)` became `VERSION = VersionTuple(6, 2, …)` in
+django/__init__.py, no unit changed there, and docs/conf.py — a reader of
+`VERSION[3:5]` the pull deprecates — was missed, though it sits in the
+imports lens of that file.
 2.1  ONLY IF the hunk shows part of the unit and the rest bears on your
      judgement: read it BY NAME — the_receipts asked by symbol, or at the
      baseSpan case_file gave you. Skip it when the hunk is the whole story.
@@ -303,29 +323,61 @@ missed, though it sits in the imports lens of that file.
 2.2  DO interrogation(qualifiedName) — what it calls and what it assumes. Compare
      the assumptions to the new lines. A caller-visible assumption the pull
      drops is a bug or a breaks-consumer.
-2.3  EDGES[] ALREADY HOLDS WHO DEPENDS ON THIS FILE — SEEDING ran
-     collateral_damage on every seed. Read this file's rows now, for EVERY
-     changed file and not only where a signature changed; call it again here
-     only for a file SEEDING could not know of (a re-export file, below).
-     `callers` rows carry `via`: the seed's functions
-     that row CALLS. Read first the rows whose `via` names a unit this pull
-     changed — measured on tldraw, 9 of postgres.ts's 14 importers call a changed
-     function and 5 do not. `callers` returns nothing where the index resolved
-     no calls (method calls, older indexes); then `imports` is the list. READ THE ROWS: each is a candidate consumer, not
-     yet evidence. CHECK THE PATH ON EVERY ROW. A path that could not belong to
-     this repository is a leak from another one, not a consumer — measured: an
-     in-repo lens on a react seed returned a cal.com file, ranked first. Drop
-     it and carry on; do not chase it and do not cite it.
+2.3  EDGES[] ALREADY HOLDS THIS FILE'S ROWS — SEEDING folded every seed through
+     these six lenses. Read them now; call collateral_damage again here only
+     for a file SEEDING could not know of (a re-export file, below).
+     Six lenses read six different edges, and each returns files the others
+     cannot:
+       imports       who imports this file
+       callers       whose functions CALL one declared here — `via` names the
+                     functions called, `strength` counts the calling units
+       dependencies  the only UPSTREAM lens: what this file itself imports —
+                     the type it takes, the schema it validates against, the
+                     constants it reads
+       contracts     who provides or consumes a contract this file does
+       types         whose signatures use a type declared here
+       surfaces      the far side of a route, event or queue address — the one
+                     lens that crosses a language boundary
+     EVERY PAGE. Follow pagination.hasNextPage to the last page; a lens's
+     strongest rows come first.
+     READ THE ROWS: each is a linked file, not yet evidence. `callers` returns
+     nothing where the index resolved no calls (method calls, older indexes);
+     then `imports` is the list. CHECK THE PATH ON EVERY ROW. A path that could
+     not belong to this repository is a leak from another one, not a consumer —
+     measured: an in-repo lens on a react seed returned a cal.com file, ranked
+     first. Drop it and carry on; do not chase it and do not cite it.
      RE-EXPORTS: consumers import a name from where the package EXPOSES it, not
      where it is declared. When a changed name is re-exported — a package
      __init__.py, an index.ts barrel, `from .x import *` — seed 2.3 on that
-     file as well. The `dependencies` lens on the declaring file lists
-     candidates: an __init__ or index file in it is the one to seed.
-2.4  FOR EACH dependent whose use could be affected by what changed: DO
-     the_receipts on the lines that use it. Judge. If it breaks — FLAG
-     breaks-consumer now, citing that file (base) and the hunk (change).
-     If it does not — say so in one line in your reasoning and move on. Not
-     reading ≠ ruling out.
+     file as well. The `dependencies` rows of the declaring file list the
+     candidates: an __init__ or index file among them is the one to seed.
+     AN ADDED FILE has no edges at the base commit: there is nothing to fold,
+     and what it reaches is STEP 3's question. A TEST FILE is never folded.
+2.4  PAIR CHECK. First DROP the test, doc, example and config rows, unless the
+     user asked for them: what the change reaches is judged in source.
+     Each row left is judged AS A PAIR, three things side by side:
+       · the seed's change — the file's hunks, already in front of you;
+       · the linked file's own lines — DO the_receipts on the lines that use
+         what the row names, every pair you mean to judge in ONE turn;
+       · the relation the graph reported between the two — its lens,
+         direction, `via` and strength.
+     ASK OF EACH PAIR: does the change, as the PLAN states it, reach this file
+     THROUGH THAT RELATION? Read first the rows whose `via` names a unit this
+     pull changed — measured on tldraw, 9 of postgres.ts's 14 importers call a
+     changed function and 5 do not — then by strength.
+       DOWNSTREAM row (imports, callers, contracts, types, surfaces): reached
+       when its lines rely on what the hunk changed. If it breaks — FLAG
+       breaks-consumer now, citing that file (base) and the hunk (change).
+       UPSTREAM row (dependencies): what the pull's NEW lines lean on. Only a
+       dependency the "+" lines actually use is a pair worth reading. Read its
+       declaration and check the "+" lines use it as it is written there — its
+       parameters, its return shape, what it throws. A mismatch is a bug in
+       the pull: FLAG bug, citing that file (base) and the hunk (change).
+     A pair the plan does not reach: say so in one line in your reasoning and
+     move on. Not reading ≠ ruling out.
+     DO NOT GO FURTHER OUT. One hop from the seed is the blast radius: a linked
+     file is judged, never folded in turn. The one other seed is the re-export
+     at 2.3.
      [CLI] Before flagging, confirm the break at the pull's head with git:
      `git show HEAD:<path>` / `git grep -n "<name>" HEAD`. Measured: a
      reviewer filed "isAbsoluteUrl removed, replaced with canonicalizeUrl" as a
