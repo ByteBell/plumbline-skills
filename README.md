@@ -4,9 +4,9 @@ Three commands for your coding agent, backed by the **Plumbline** code knowledge
 
 | Command | What it does |
 | --- | --- |
-| `/plumbline-verify [from] [to]` | Reviews the change between two commits (default: your last commit) against every caller in every indexed repository. Output is a GitHub-style review. |
-| `/plumbline-review-pr <PR URL \| #n> [more PRs]` | The same review for a GitHub, GitLab or Bitbucket pull request, fetched without switching your branch. Several PRs across repositories are reviewed as one change. |
-| `/plumbline-blast <file[:lines] \| symbol \| pasted code>` | What depends on this code, and what breaks if it changes — in the shape of your IDE's Find All References. |
+| `/plumbline-verify [file \| directory \| pasted code \| from [to]]` | Reviews a file, every file of a directory, pasted code, or the change between two commits (default: your last commit) against every caller in every indexed repository. Every file is seeded. Output is a GitHub-style review. |
+| `/plumbline-review-pr <PR URL \| #n> [more PRs]` | The same review for a GitHub, GitLab or Bitbucket pull request, fetched without switching your branch. Every file the PR changes is seeded. Several PRs across repositories are reviewed as one change. |
+| `/plumbline-blast <file[:lines] \| directory \| symbol \| pasted code>` | What depends on this code, and what breaks if it changes — in the shape of your IDE's Find All References. A directory seeds every file under it. |
 | `/plumbline-resolve-issue <issue text \| issue URL>` | Finds every file the issue touches, writes failing tests first, then the fix, then runs the tests until they pass. Nothing is committed. |
 
 They work in **Claude Code**, **OpenCode** and **Codex**, with whatever model your agent runs.

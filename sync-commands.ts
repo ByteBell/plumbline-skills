@@ -98,20 +98,80 @@ review.swap(
   `BASE:        FROM, fixed in the header above.`,
 );
 
+// The commands START FROM THE SEEDING STAGE: every file is a seed, seeded before any judgement about
+// it. The service prompt seeds only the units whose signature it judged to have changed (2.3); a file
+// that judgement skips is a file whose consumers nobody reads.
+review.swap(
+  `---- STEP 0 — GROUND ----`,
+  `---- SEEDING — where this run starts. EVERY file is a seed. ----
+SD1. SEEDS[] = every file in the index (S2), whatever its status — and, when the
+     header names a TARGET (a file, a directory or pasted code), every file of
+     that target, changed or not. Write the list down with its count. No file is
+     left out because its change looks cosmetic or internal: that is judged on
+     the rows, after seeding, never before it.
+SD2. FOR EACH seed the graph holds: DO collateral_damage(relativePath,
+     lens=['imports','callers','dependencies','contracts','types','surfaces'],
+     limit=100) and follow pagination.hasNextPage to the last page. Independent
+     seeds go in ONE turn; a long list goes in batches of about ten, one batch
+     after another, until the last seed is done. An ADDED file is not in the
+     graph yet: record it as a NEW seed and seed nothing for it.
+SD3. Write EDGES[]: one entry per seed — each dependent file, with the lens that
+     linked it and its \`via\` names. Rows under test, doc, example, fixture or
+     config paths are dropped and counted, unless the user asked for them.
+     CHECK THE PATH ON EVERY ROW, as 2.3 says: a path that cannot belong to this
+     repository leaked from another one.
+SD4. ASSERT before STEP 0: seeds seeded + NEW seeds == |SEEDS[]|. A seed with no
+     call is a file whose consumers this review silently leaves out. Do not stop
+     at the first seed that returns rows; the stage ends with the last seed.
+
+---- STEP 0 — GROUND ----`,
+);
+review.swap(
+  `EDGES[]     { unit, dependents[] }           — who leans on each changed unit, STEP 2`,
+  `EDGES[]     { seed, dependents[] }           — who leans on each seed file. Written at SEEDING; STEP 2 reads it`,
+);
+review.swap(
+  `2.3  DO collateral_damage(relativePath, lens=['imports','callers','contracts','types'])
+     — who depends on this file.`,
+  `2.3  EDGES[] ALREADY HOLDS WHO DEPENDS ON THIS FILE — SEEDING ran
+     collateral_damage on every seed. Read this file's rows now, for EVERY
+     changed file and not only where a signature changed; call it again here
+     only for a file SEEDING could not know of (a re-export file, below).
+    `,
+);
+
 await Bun.write(
   join(OUT, "verify.md"),
   `---
-description: Verify the code change between two commits against the Plumbline graph — every hunk checked, every caller in every indexed repository
-argument-hint: "[from] [to] [--repos all | repo[=path][@from..to],…]"
+description: Verify code against the Plumbline graph — a file, a directory, pasted code, or the change between two commits; every file seeded, every hunk checked, every caller in every indexed repository
+argument-hint: "[file | directory | pasted code | from [to]] [--repos all | repo[=path][@from..to],…]"
 ---
 PLUMBLINE VERIFY — arguments: $ARGUMENTS
 
-V1. FROM and TO — this repository's change. Read the arguments (after taking out --repos) as
-    two commits, tags or branch names, or one FROM..TO range. None → FROM=HEAD~1, TO=HEAD.
-    One → FROM=it, TO=HEAD. Do NOT ask the user which branch: resolve each with
-    \`git rev-parse --verify <ref>^{commit}\`; if one does not resolve, stop and say which.
-    Uncommitted changes are not part of the change — if \`git status --porcelain\` is
-    non-empty, say so in one line and continue.
+V1. WHAT TO VERIFY. Read the arguments (after taking out --repos). The FIRST argument is tried
+    as a path before anything else:
+      a. a FILE that exists (\`test -f\`)       → the TARGET is that file.
+      b. a DIRECTORY that exists (\`test -d\`)  → the TARGET is every source file under it:
+                                               \`git ls-files -- <path>\`. Write the list
+                                               down with its count.
+      c. two commits, tags or branch names, or one FROM..TO range → that change.
+         One ref → FROM=it, TO=HEAD. Do NOT ask the user which branch: resolve each with
+         \`git rev-parse --verify <ref>^{commit}\`; if one does not resolve, stop and say which.
+      d. nothing → FROM=HEAD~1, TO=HEAD.
+      e. anything else is PASTED CODE. Do not ask where it came from: run manhunt and
+         shakedown on its two most specific identifiers and confirm the unit with
+         the_receipts. Its file is the TARGET, and the pasted text is that unit's new
+         version — one hunk, F1.H1, judged against the base unit. Nothing matches → it is
+         new code: the TARGET is the files of the names it calls, imports or extends.
+    WITH A TARGET (a, b, e) there is no FROM..TO to resolve: FROM is this repository's COMMIT
+    from the ROSTER (V2) and TO is the working tree. S1's MERGE_BASE is that COMMIT; S2 is
+    \`git diff --no-renames --name-status <COMMIT> -- <the target's paths>\`; S3's DIFF is
+    \`git diff -U5 <COMMIT> -- <path>\`; wherever a command below says HEAD, read the file on
+    disk. READ EVERY FILE of the target and SEED EVERY ONE, whether or not it differs from
+    the graph: a file with no difference has no hunks to clear, but it is still seeded and
+    its dependents are still read. Work through the list to its last file.
+    Without a target (c, d), uncommitted changes are not part of the change — if
+    \`git status --porcelain\` is non-empty, say so in one line and continue.
 ${repos("V2", true)}
     Only the repositories have to be indexed, not FROM or TO: the review reads each change from
     git and the dependents from the graph, and S5 below reports how far apart they are.

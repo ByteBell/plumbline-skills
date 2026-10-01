@@ -1,15 +1,33 @@
 ---
-description: Verify the code change between two commits against the Plumbline graph — every hunk checked, every caller in every indexed repository
-argument-hint: "[from] [to] [--repos all | repo[=path][@from..to],…]"
+description: Verify code against the Plumbline graph — a file, a directory, pasted code, or the change between two commits; every file seeded, every hunk checked, every caller in every indexed repository
+argument-hint: "[file | directory | pasted code | from [to]] [--repos all | repo[=path][@from..to],…]"
 ---
 PLUMBLINE VERIFY — arguments: $ARGUMENTS
 
-V1. FROM and TO — this repository's change. Read the arguments (after taking out --repos) as
-    two commits, tags or branch names, or one FROM..TO range. None → FROM=HEAD~1, TO=HEAD.
-    One → FROM=it, TO=HEAD. Do NOT ask the user which branch: resolve each with
-    `git rev-parse --verify <ref>^{commit}`; if one does not resolve, stop and say which.
-    Uncommitted changes are not part of the change — if `git status --porcelain` is
-    non-empty, say so in one line and continue.
+V1. WHAT TO VERIFY. Read the arguments (after taking out --repos). The FIRST argument is tried
+    as a path before anything else:
+      a. a FILE that exists (`test -f`)       → the TARGET is that file.
+      b. a DIRECTORY that exists (`test -d`)  → the TARGET is every source file under it:
+                                               `git ls-files -- <path>`. Write the list
+                                               down with its count.
+      c. two commits, tags or branch names, or one FROM..TO range → that change.
+         One ref → FROM=it, TO=HEAD. Do NOT ask the user which branch: resolve each with
+         `git rev-parse --verify <ref>^{commit}`; if one does not resolve, stop and say which.
+      d. nothing → FROM=HEAD~1, TO=HEAD.
+      e. anything else is PASTED CODE. Do not ask where it came from: run manhunt and
+         shakedown on its two most specific identifiers and confirm the unit with
+         the_receipts. Its file is the TARGET, and the pasted text is that unit's new
+         version — one hunk, F1.H1, judged against the base unit. Nothing matches → it is
+         new code: the TARGET is the files of the names it calls, imports or extends.
+    WITH A TARGET (a, b, e) there is no FROM..TO to resolve: FROM is this repository's COMMIT
+    from the ROSTER (V2) and TO is the working tree. S1's MERGE_BASE is that COMMIT; S2 is
+    `git diff --no-renames --name-status <COMMIT> -- <the target's paths>`; S3's DIFF is
+    `git diff -U5 <COMMIT> -- <path>`; wherever a command below says HEAD, read the file on
+    disk. READ EVERY FILE of the target and SEED EVERY ONE, whether or not it differs from
+    the graph: a file with no difference has no hunks to clear, but it is still seeded and
+    its dependents are still read. Work through the list to its last file.
+    Without a target (c, d), uncommitted changes are not part of the change — if
+    `git status --porcelain` is non-empty, say so in one line and continue.
 V2. THE ROSTER — which repositories this run covers. roll_call first: it lists every indexed
     repository. Find THIS one by `git remote get-url origin`; not listed → stop and say
     "This repository is not indexed in Plumbline — index it first."
@@ -199,7 +217,7 @@ UNITS[]     { file, hunk, symbol, baseSpan } — what each hunk lands in, STEP 1
             baseSpan is the startLine–endLine case_file reported for that
             symbol AT THE BASE COMMIT. It is the only line range that addresses
             the graph; the hunk's own numbers never do.
-EDGES[]     { unit, dependents[] }           — who leans on each changed unit, STEP 2
+EDGES[]     { seed, dependents[] }           — who leans on each seed file. Written at SEEDING; STEP 2 reads it
 OPENED      hunks of the file you are on, read with git diff — plus any other
             file's hunk opened as context for one of them
 READ        base files you have read with the_receipts
@@ -208,6 +226,27 @@ FLAGGED     findings delivered. Each reaches the visitor through its own
 CLEARED     hunks you have recorded a verdict on with CLEAR. This is the
             review's completeness measure: every hunk in the index belongs here
             before you stop.
+
+---- SEEDING — where this run starts. EVERY file is a seed. ----
+SD1. SEEDS[] = every file in the index (S2), whatever its status — and, when the
+     header names a TARGET (a file, a directory or pasted code), every file of
+     that target, changed or not. Write the list down with its count. No file is
+     left out because its change looks cosmetic or internal: that is judged on
+     the rows, after seeding, never before it.
+SD2. FOR EACH seed the graph holds: DO collateral_damage(relativePath,
+     lens=['imports','callers','dependencies','contracts','types','surfaces'],
+     limit=100) and follow pagination.hasNextPage to the last page. Independent
+     seeds go in ONE turn; a long list goes in batches of about ten, one batch
+     after another, until the last seed is done. An ADDED file is not in the
+     graph yet: record it as a NEW seed and seed nothing for it.
+SD3. Write EDGES[]: one entry per seed — each dependent file, with the lens that
+     linked it and its `via` names. Rows under test, doc, example, fixture or
+     config paths are dropped and counted, unless the user asked for them.
+     CHECK THE PATH ON EVERY ROW, as 2.3 says: a path that cannot belong to this
+     repository leaked from another one.
+SD4. ASSERT before STEP 0: seeds seeded + NEW seeds == |SEEDS[]|. A seed with no
+     call is a file whose consumers this review silently leaves out. Do not stop
+     at the first seed that returns rows; the stage ends with the last seed.
 
 ---- STEP 0 — GROUND ----
 0.1  DO rap_sheet — one brief on what this repository is FOR. Read it before you
@@ -263,8 +302,11 @@ missed, though it sits in the imports lens of that file.
 2.2  DO interrogation(qualifiedName) — what it calls and what it assumes. Compare
      the assumptions to the new lines. A caller-visible assumption the pull
      drops is a bug or a breaks-consumer.
-2.3  DO collateral_damage(relativePath, lens=['imports','callers','contracts','types'])
-     — who depends on this file. `callers` rows carry `via`: the seed's functions
+2.3  EDGES[] ALREADY HOLDS WHO DEPENDS ON THIS FILE — SEEDING ran
+     collateral_damage on every seed. Read this file's rows now, for EVERY
+     changed file and not only where a signature changed; call it again here
+     only for a file SEEDING could not know of (a re-export file, below).
+     `callers` rows carry `via`: the seed's functions
      that row CALLS. Read first the rows whose `via` names a unit this pull
      changed — measured on tldraw, 9 of postgres.ts's 14 importers call a changed
      function and 5 do not. `callers` returns nothing where the index resolved

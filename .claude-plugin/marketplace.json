@@ -12,7 +12,7 @@
       "name": "plumbline",
       "source": "./plugins/plumbline",
       "description": "Plumbline knowledge graph — search, traverse, and retrieve from indexed code repos and PDF documents",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "author": {
         "name": "ByteBell"
       },

@@ -25,9 +25,9 @@ const HELP = `plumbline ${VERSION} — Plumbline commands for Claude Code, OpenC
 
 After installing, inside your agent, in a checkout of an indexed repository:
 
-  /plumbline-verify [from] [to]             review a change against every caller in every indexed repo
+  /plumbline-verify [path | code | from to] review a file, a directory, pasted code or a change against every caller
   /plumbline-review-pr <PR URL | #n> …      the same review for a GitHub / GitLab / Bitbucket PR
-  /plumbline-blast <file | symbol | code>   what depends on this code, and what breaks if it changes
+  /plumbline-blast <file | dir | symbol | code>  what depends on this code, and what breaks if it changes
   /plumbline-resolve-issue <issue>          find the affected files, write failing tests, fix, test
 
   verify, review-pr and resolve-issue take --repos to work across repositories (plumbline help repos).
@@ -72,11 +72,15 @@ const TOPICS = {
     not plain JSON (comments?)      your opencode.json has comments; add the entry by hand
 `,
 
-  verify: `/plumbline-verify [from] [to] — review a change against the code graph
+  verify: `/plumbline-verify [file | directory | pasted code | from [to]] — review code against the code graph
 
-  Codex: /prompts:plumbline-verify [from] [to]
+  Codex: /prompts:plumbline-verify [file | directory | pasted code | from [to]]
 
-  Arguments (commits, tags or branch names — it never asks which branch):
+  Arguments. The first one is tried as a path; otherwise commits, tags or branch names — it
+  never asks which branch:
+    <file>              that file, as it is on disk, against the indexed commit
+    <directory>         every file under it; each one is read and seeded, to the last file
+    <pasted code>       the unit it belongs to is found, and the paste is judged as its new version
     (none)              your last commit: HEAD~1 → HEAD
     <from>              <from> → HEAD
     <from> <to>         <from> → <to>
@@ -86,6 +90,8 @@ const TOPICS = {
 
   Examples:
     /plumbline-verify
+    /plumbline-verify src/billing/invoice.ts
+    /plumbline-verify packages/core/src
     /plumbline-verify main
     /plumbline-verify v5.0.14 v5.0.15
     /plumbline-verify a1b2c3d..HEAD
@@ -94,8 +100,8 @@ const TOPICS = {
 
   What it does:
     1. Reads the change from your checkout with git — every file, every hunk.
-    2. Asks the graph who depends on each changed function, file and exported name —
-       in this repository and in every other indexed repository.
+    2. Seeds EVERY file: asks the graph who depends on it — in this repository and in every
+       other indexed repository — whether or not its change looks important.
     3. Reads the real source of those callers before claiming anything breaks.
     4. Gives every hunk a verdict: bug, breaks-consumer, duplicate, convention, rewrite — or clean.
   Lockfiles and generated files (package-lock.json, pnpm-lock.yaml, go.sum, dist/, …) are left
@@ -167,6 +173,7 @@ const TOPICS = {
   <target> is one of:
     a file              src/api/orders.ts
     a file + lines      src/api/orders.ts:40-88     (only the functions inside that range)
+    a directory         packages/core/src           (every file under it is seeded, to the last one)
     a symbol            createOrder    or    OrderService.submit
     pasted code         paste a function or block — it finds where that code lives first
     (nothing)           your uncommitted changes; if there are none, your last commit
