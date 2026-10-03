@@ -84,6 +84,13 @@ schema. Populate `reason` on every call — it is recorded to evaluate tool
 quality, costs nothing, and never changes the result. See
 [pagination.md](plumbline://skills/plumbline/pagination.md).
 
+**COMPULSORY opening of every task** — a pull request to review, an issue to fix,
+a change set to find — right after `roll_call` and before any other search, even
+when you already know the repository: `jurisdiction` with the task, then `lineup`
+at least 3 times with different patterns built from the task's identifiers, then
+`collateral_damage` on EVERY row `lineup` returns. Only then the other tools.
+(`jurisdiction` and `lineup` exist when the server has a classifier configured.)
+
 | Tool                | One-liner                                                                        | Dedicated skill                                                         |
 | ------------------- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
 | `roll_call`         | List IR-indexed repos (knowledgeId, repoId, orgId) + each one's newest commit    | [roll-call.md](plumbline://skills/plumbline/roll-call.md)                 |
@@ -99,6 +106,8 @@ quality, costs nothing, and never changes the result. See
 | `cross_repo_lookup` | Resolve a GLOBAL coordinate — package / wire address / exported symbol — to the files on each side of it | [cross-repo-lookup.md](plumbline://skills/plumbline/cross-repo-lookup.md) |
 | `dragnet`           | Find the files a change hits when you CANNOT name them; harvests the names from the graph as it walks | [dragnet.md](plumbline://skills/plumbline/dragnet.md)                     |
 | `shakedown`         | GREP raw source text (literal or regex) over the on-disk snapshot of ONE repo — confirmation only            | [shakedown.md](plumbline://skills/plumbline/shakedown.md)                 |
+| `jurisdiction`      | Decide whether a TASK is single-repo or cross-repo, and which repositories to search — a classifier over the repo briefs; registered only when the server has a classifier configured | [jurisdiction.md](plumbline://skills/plumbline/jurisdiction.md)           |
+| `lineup`            | GREP every routed repository and have the classifier keep the hit FILES that are part of the task — fold seeds, not an answer; requires `jurisdiction` first | [lineup.md](plumbline://skills/plumbline/lineup.md)                       |
 | `file_a_complaint`  | Report wrong/missing tool results (requires an MCP API key)                      | _(simple — inline description sufficient)_                              |
 | `case_notes`        | Persist conversation transcript + accessed nodes (requires an MCP API key)       | _(simple — inline description sufficient)_                              |
 | `cold_case`         | Fetch a saved conversation by id                                                 | _(simple — inline description sufficient)_                              |

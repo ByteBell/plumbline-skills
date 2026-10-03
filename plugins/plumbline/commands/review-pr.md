@@ -220,9 +220,8 @@ UNITS[]     { file, hunk, symbol, baseSpan } — what each hunk lands in, STEP 1
             baseSpan is the startLine–endLine case_file reported for that
             symbol AT THE BASE COMMIT. It is the only line range that addresses
             the graph; the hunk's own numbers never do.
-EDGES[]     { seed, path, lens, direction, via, verdict } — every file the graph
-            links to each seed. Written at SEEDING; STEP 2's pair check fills in
-            the verdict
+EDGES[]     { path, lens, direction, via, verdict } — every file the graph links
+            to the file you are on, and what the pair check concluded, STEP 2
 OPENED      hunks of the file you are on, read with git diff — plus any other
             file's hunk opened as context for one of them
 READ        base files you have read with the_receipts
@@ -232,26 +231,41 @@ CLEARED     hunks you have recorded a verdict on with CLEAR. This is the
             review's completeness measure: every hunk in the index belongs here
             before you stop.
 
----- SEEDING — where this run starts. EVERY file is a seed. ----
+---- SEEDING — where this run starts. EVERY file is a seed, and EACH SEED IS
+     REVIEWED BY ITS OWN AGENT, all of them at once. ----
 SD1. SEEDS[] = every file in the index (S2), whatever its status — and, when the
      header names a TARGET (a file, a directory or pasted code), every file of
      that target, changed or not. Write the list down with its count. No file is
      left out because its change looks cosmetic or internal: that is judged on
      the rows, after seeding, never before it.
-SD2. FOR EACH seed the graph holds: DO collateral_damage(relativePath,
-     lens=['imports','callers','dependencies','contracts','types','surfaces'],
-     limit=100) and follow pagination.hasNextPage to the last page. Independent
-     seeds go in ONE turn; a long list goes in batches of about ten, one batch
-     after another, until the last seed is done. An ADDED file is not in the
-     graph yet: record it as a NEW seed and seed nothing for it.
-SD3. Write EDGES[]: one entry per seed — each dependent file, with the lens that
-     linked it and its `via` names. Rows under test, doc, example, fixture or
-     config paths are dropped and counted, unless the user asked for them.
-     CHECK THE PATH ON EVERY ROW, as 2.3 says: a path that cannot belong to this
-     repository leaked from another one.
-SD4. ASSERT before STEP 0: seeds seeded + NEW seeds == |SEEDS[]|. A seed with no
-     call is a file whose consumers this review silently leaves out. Do not stop
-     at the first seed that returns rows; the stage ends with the last seed.
+SD2. GROUND ONCE, FOR EVERY AGENT: DO rap_sheet and blueprint (0.1, 0.2) for each
+     repository that has a seed, all in ONE turn.
+SD3. ONE AGENT PER SEED. Start the plumbline-review-file agent (the Agent tool in Claude
+     Code — named plumbline:plumbline-review-file when Plumbline is loaded as a plugin;
+     the task tool in OpenCode) once for each seed. Up to 8 run at once: start
+     them in ONE message, and start the next seed's agent the moment one
+     returns, until every seed has had one. Hand each THE BRIEF and nothing else:
+       FILE        <label: F<n>, or <repo>:F<n>>  <path>  <A | M | D | unchanged>
+       REPOSITORY  <slug>  knowledgeId <id>  COMMIT <commit>  checkout <dir>
+       CHANGE      FROM <sha>  TO <sha, or "the working tree">  MERGE_BASE <sha>
+       DRIFT       yes | no — S5 for this file
+       INDEX       every other seed: label, path, status
+       GROUND      the rap_sheet lines that bear on this file, and the blueprint
+                   module it sits in
+       ROSTER      every ROSTER row: repository, knowledgeId, commit
+     The agent reads its own diff, source and graph rows: never paste them into
+     the brief.
+     NO WAY TO START AN AGENT (Codex) → you are the one agent: run STEPS 0.3–5
+     below yourself for every seed, ONE FILE AT A TIME, and skip SD4.
+SD4. MERGE. Each agent returns its file's PLAN, Findings, Checked lines and what
+     it did not get to. The same path, line and kind from two agents is one
+     finding: keep the one with more evidence. A hunk returned without a verdict
+     → start one more agent on that file, naming those hunks; still none → its
+     Checked line says "not reviewed —" and the reason the agent gave.
+     ASSERT before OUTPUT: agents returned == |SEEDS[]|, and hunks cleared ==
+     hunks in the index. Then write OUTPUT from the merged lines.
+STEPS 0–5 below are what each agent runs on its file. You do not run them (unless
+SD3 made you the one agent); read them to judge what the agents return.
 
 ---- STEP 0 — GROUND ----
 0.1  DO rap_sheet — one brief on what this repository is FOR. Read it before you
@@ -262,6 +276,13 @@ SD4. ASSERT before STEP 0: seeds seeded + NEW seeds == |SEEDS[]|. A seed with no
      Read the DIFF before any graph call: the change is the question, and you
      cannot search for what you have not read. The next file's DIFF is opened
      when every hunk of this one is CLEARED (ONE FILE AT A TIME).
+0.4  ROUTE — COMPULSORY, before any other search. DO jurisdiction(task = the
+     pull's title and description plus every path in the INDEX). Then DO lineup
+     at least 3 times, each with a different regex built from identifiers the
+     DIFF changes or calls. Then DO collateral_damage(lens=['dependencies',
+     'callers','types']) on EVERY row lineup returns, passing its commitHash.
+     The files this surfaces are what the change reaches beyond the INDEX —
+     judge them in STEP 2 alongside each seed's own fold.
 
 ---- STEP 1 — SEED. Every changed file is a seed: the pull already made the change. ----
 Nothing is searched for. A change set is found by first finding where the
@@ -323,9 +344,10 @@ imports lens of that file.
 2.2  DO interrogation(qualifiedName) — what it calls and what it assumes. Compare
      the assumptions to the new lines. A caller-visible assumption the pull
      drops is a bug or a breaks-consumer.
-2.3  EDGES[] ALREADY HOLDS THIS FILE'S ROWS — SEEDING folded every seed through
-     these six lenses. Read them now; call collateral_damage again here only
-     for a file SEEDING could not know of (a re-export file, below).
+2.3  FOLD THE SEED. DO collateral_damage(relativePath, lens=['imports',
+     'callers','dependencies','contracts','types','surfaces'], limit=100) —
+     when you start on the file, beside 1.1: it takes the path, not case_file's
+     answer.
      Six lenses read six different edges, and each returns files the others
      cannot:
        imports       who imports this file

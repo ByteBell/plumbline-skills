@@ -3,8 +3,7 @@ name: the-receipts
 description: >
   Dedicated usage skill for the `the_receipts` MCP tool — get verbatim
   source from an IR-indexed repo: a code unit's line range inline with a
-  100-line buffer, a whole file as a signed URL to download, or a
-  search inside a file. The IR-schema tool for reaching raw source.
+  100-line buffer, a whole file inline, or a search inside a file. The IR-schema tool for reaching raw source.
   Read when the digest attached to its first result is not enough.
 user-invocable: false
 ---
@@ -19,10 +18,8 @@ exactly as the ingestion pipeline stored it — and what you get back depends on
 - **Range** (`symbol`, or `fromLine`/`toLine` — a code unit): the lines come
   back **inline**, widened by 100 lines on each side so the unit arrives with
   its imports, siblings and call sites, token-budgeted.
-- **Delivery** (no line args, no `search` — the whole file): the file is
-  **not** returned inline. You get a **signed download URL**, valid 270 seconds
-  from issue, and you download it yourself with a plain HTTP GET (no auth
-  header).
+- **Whole file** (no line args, no `search`): the file comes back **inline**
+  from line 1, under the same token budget.
 - **Search** (`search` set, and `bulk_search`): the file is scanned server-side
   and only the matching lines + context come back.
 
@@ -57,10 +54,8 @@ Two or more declarations of one name come back as a list of
 name. No match says so, and says the symbol may postdate this commit or live in
 a test file (those are not indexed).
 
-**A whole file** — no line args — is never inline. **You are given a signed
-download URL and you have to download it**: `Download:` (the URL), `Expires:` (270s
-from issue), `Size:`. GET it before it expires; an expired URL is a 403, and
-the fix is to call this tool again for a fresh one.
+**A whole file** — no line args — comes back inline from line 1: `Lines: 1-b of
+TOTAL`, with a `More: re-call with fromLine=N` cursor when the budget cuts it.
 
 Set `search` (case-insensitive) with `contextLines` (0–10, default 3) to get
 matching lines instead; the range args are ignored in that mode.
@@ -72,7 +67,7 @@ matching lines instead; the range args are ignored in that mode.
 - "File not found" is an ingestion gap for that path at that commit, NOT
   a bad path — do not retry variations.
 - **Cite what you read** as `relativePath:fromLine-toLine`, grounded in the
-  returned or downloaded lines rather than the file-level summary.
+  returned lines rather than the file-level summary.
 - THIN → to find a string you cannot place, use `shakedown`, not repeated
   calls here.
 
@@ -105,8 +100,8 @@ the snapshot that is actually being read.
 | `paths`        | string[] (opt.)   | File paths for `bulk_search` / `bulk_retrieve` (max 50).            |
 | `fromLine`     | number (optional) | 1-based start of the unit, from `case_file`/`interrogation` ON THIS COMMIT. Either line arg → inline range. |
 | `toLine`       | number (optional) | 1-based end line, inclusive. Omit → to end.                         |
-| `maxTokens`    | number (optional) | Token cap per file for an inline range (500–50000, default 10000).  |
-| `search`       | string (optional) | When set → search mode: only lines containing it + context. No URL. |
+| `maxTokens`    | number (optional) | Token cap per file (500–50000, default 10000).                      |
+| `search`       | string (optional) | When set → search mode: only lines containing it + context.         |
 | `matchOnly`    | boolean (opt.)    | `bulk_search` only: counts + line numbers, no context windows.      |
 | `contextLines` | number (optional) | Context lines around each search match (0–10, default 3).           |
 | `commitHash`   | string (optional) | Specific commit (full or prefix). Omit → newest indexed commit.     |
@@ -117,11 +112,10 @@ the snapshot that is actually being read.
   side, each line prefixed with its number. Header reports `Requested:` and
   `Lines: a-b of TOTAL`; when the token budget cuts it, a
   `More: re-call with fromLine=N` hint gives the continuation cursor.
-- **Delivery** (no line args): returns `Download:` / `Expires:` / `Size:` for
-  the file. The URL is a signed GET, valid 270 seconds; download it and
-  read from the bytes. `bulk_retrieve` follows the same rule per path — line
-  args → inline ranges, none → one URL each — with `ERROR:` for a path that
-  is not at that commit.
+- **Whole file** (no line args): returns the file from line 1, numbered, under
+  the token budget, with the same `More:` cursor. `bulk_retrieve` follows the
+  same rule per path — line args → inline ranges, none → each whole file —
+  with `ERROR:` for a path that is not at that commit.
 - **Search** (`search` set): scans the whole file server-side, returns every
   line containing the term (case-insensitive) plus `contextLines` around each,
   with a match count. Range args are ignored in this mode. `bulk_search` does
@@ -135,9 +129,6 @@ the snapshot that is actually being read.
   `interrogation` (`startLine`–`endLine`). Then ask for exactly that span
   instead of reading blind — e.g. a unit at lines 50–68 →
   `fromLine: 50, toLine: 68`; lines 1–168 come back.
-- **A whole file is a URL, not source.** Download it before you cite. A claim
-  grounded on the receipt alone is grounded on nothing; RULE 1 is satisfied by
-  the bytes you fetched.
 - **Commit:** omit `commitHash` to read the newest indexed commit. Pass it
   (full or prefix) only when version-pinned.
 - **Access is org-scoped** like every ir\_\* tool: a `knowledgeId` outside the
@@ -145,4 +136,4 @@ the snapshot that is actually being read.
 - **"File not found"** means that path is not stored for that
   commit — an ingestion gap, not a bad path.
 - **Cite what you read** as `relativePath:fromLine-toLine`, grounded in the
-  returned or downloaded lines rather than the file-level summary.
+  returned lines rather than the file-level summary.

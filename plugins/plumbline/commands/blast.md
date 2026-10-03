@@ -52,6 +52,14 @@ something: it ends when the last seed on the list has been seeded.
                 treat each resolved file as the target, heading the answer
                 "New code — not in the graph; impact of what it uses".
 
+2.4 ROUTE — COMPULSORY, before any other search. jurisdiction(task = "what depends on
+    <the TARGET>, and what breaks if it changes" plus every path in SEEDS[]). Then
+    lineup at least 3 times, each with a different regex built from the target's own
+    identifiers (its exported names, the names its callers would use). Then
+    collateral_damage(lens=['dependencies','callers','types']) on EVERY row lineup
+    returns, passing its commitHash. A lineup row that depends on the target is a
+    dependent like any row from step 3, and goes through 3.3 for its line.
+
 ---- 3. SEED EVERY FILE — WHO DEPENDS ON IT ----
 3.1 FOR EACH file in SEEDS[]: collateral_damage(relativePath, lens=['imports','callers',
     'contracts','types','packages','surfaces','keywords'], limit=100), and follow

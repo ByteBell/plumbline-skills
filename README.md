@@ -55,13 +55,19 @@ keep `.mcp.json` and `opencode.json` out of git.
 
 ## For maintainers
 
-`verify.md` and `resolve-issue.md` are **generated — never edit them**. Each is a service prompt with
-a header for a local agent:
+`verify.md`, `review-pr.md`, `resolve-issue.md` and `agents/plumbline-review-file.md` are
+**generated — never edit them**. Each is a service prompt with a header for a local agent:
 
 ```text
-verify.md         ← services/chat-mcp/repo/mcp-server/src/prompts/reviewPr.ts   (review_pr)
-resolve-issue.md  ← services/public-agent/src/prompt.ts                         (retrieval prompt)
+verify.md, review-pr.md         ← services/chat-mcp/repo/mcp-server/src/prompts/reviewPr.ts   (review_pr)
+agents/plumbline-review-file.md ← the same review_pr algorithm, cut before its OUTPUT
+resolve-issue.md                ← services/public-agent/src/prompt.ts                         (retrieval prompt)
 ```
+
+`verify` and `review-pr` review every changed file in parallel: they ground once, start
+`plumbline-review-file` once per file (up to 8 at a time), and merge what each returns into one
+review. The installer puts that agent into Claude Code and OpenCode; Codex has no subagents, so
+there the command reviews the files one at a time itself.
 
 Change the service prompt, then `bun sync-commands.ts [path-to-kube-package]`. `blast.md` is edited
 directly. Developers install straight from this repository, so a pushed commit is a release.
@@ -74,7 +80,8 @@ once and shipped dead `bytebell://` URIs.
 ```text
 bin/plumbline.mjs                   the installer (npm bin)
 sync-commands.ts                    renders the generated commands
-plugins/plumbline/commands/         verify.md, blast.md, resolve-issue.md
+plugins/plumbline/commands/         verify.md, review-pr.md, blast.md, resolve-issue.md
+plugins/plumbline/agents/           plumbline-review-file.md, the per-file reviewer
 plugins/plumbline/skills/plumbline/ skill files, mirrored from the server
 plugins/plumbline/.claude-plugin/   plugin manifest
 .claude-plugin/marketplace.json     marketplace definition

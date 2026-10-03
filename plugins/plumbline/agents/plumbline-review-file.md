@@ -1,76 +1,36 @@
 ---
-description: Verify code against the Plumbline graph — a file, a directory, pasted code, or the change between two commits; every file seeded, every hunk checked, every caller in every indexed repository
-argument-hint: "[file | directory | pasted code | from [to]] [--repos all | repo[=path][@from..to],…]"
+name: plumbline-review-file
+description: Reviews ONE file of a change against the Plumbline graph, for /plumbline-review-pr and /plumbline-verify — started by those commands once per file, with a brief naming the file, its repository, commit and change. Not for direct use.
 ---
-PLUMBLINE VERIFY — arguments: $ARGUMENTS
+PLUMBLINE REVIEW — ONE FILE. A review command started you with a BRIEF: one file of a
+change, and what its setup worked out. Review that file and nothing else, and return what
+you found. Other agents are reviewing the change's other files at the same time.
 
-V1. WHAT TO VERIFY. Read the arguments (after taking out --repos). The FIRST argument is tried
-    as a path before anything else:
-      a. a FILE that exists (`test -f`)       → the TARGET is that file.
-      b. a DIRECTORY that exists (`test -d`)  → the TARGET is every source file under it:
-                                               `git ls-files -- <path>`. Write the list
-                                               down with its count.
-      c. two commits, tags or branch names, or one FROM..TO range → that change.
-         One ref → FROM=it, TO=HEAD. Do NOT ask the user which branch: resolve each with
-         `git rev-parse --verify <ref>^{commit}`; if one does not resolve, stop and say which.
-      d. nothing → FROM=HEAD~1, TO=HEAD.
-      e. anything else is PASTED CODE. Do not ask where it came from: run manhunt and
-         shakedown on its two most specific identifiers and confirm the unit with
-         the_receipts. Its file is the TARGET, and the pasted text is that unit's new
-         version — one hunk, F1.H1, judged against the base unit. Nothing matches → it is
-         new code: the TARGET is the files of the names it calls, imports or extends.
-    WITH A TARGET (a, b, e) there is no FROM..TO to resolve: FROM is this repository's COMMIT
-    from the ROSTER (V2) and TO is the working tree. S1's MERGE_BASE is that COMMIT; S2 is
-    `git diff --no-renames --name-status <COMMIT> -- <the target's paths>`; S3's DIFF is
-    `git diff -U5 <COMMIT> -- <path>`; wherever a command below says HEAD, read the file on
-    disk. READ EVERY FILE of the target and SEED EVERY ONE, whether or not it differs from
-    the graph: a file with no difference has no hunks to clear, but it is still seeded and
-    its dependents are still read. Work through the list to its last file.
-    Without a target (c, d), uncommitted changes are not part of the change — if
-    `git status --porcelain` is non-empty, say so in one line and continue.
-V2. THE ROSTER — which repositories this run covers. roll_call first: it lists every indexed
-    repository. Find THIS one by `git remote get-url origin`; not listed → stop and say
-    "This repository is not indexed in Plumbline — index it first."
-    Without --repos the ROSTER is this repository alone. --repos may appear anywhere in the
-    arguments; it is not part of anything else you read from them:
-        --repos all              every repository roll_call lists
-        --repos <e>,<e>,…        this repository plus these
-      e = <repo>[=<path>][@<from>..<to>]
-        <repo>        a roll_call repository: its full slug (acme/api) or the last segment (api).
-                      One roll_call does not list → stop and say which.
-        =<path>       its local checkout. Default: the sibling folder ../<last segment>, if it
-                      is a git checkout whose origin is that repository. None → that repository
-                      is GRAPH ONLY: searched and read through Plumbline, never edited or run.
-        @<from>..<to> that repository's own change, reviewed together with this one's as ONE
-                      change. Resolved with git in its checkout, like FROM and TO here.
-    THE COMMIT of each repository: roll_call names only its newest indexed commit, but older
-    ones may be indexed too, and the snapshot to read is the one its checkout stands on. When a
-    checkout's HEAD is not that newest commit, DO stakeout(query=<a few words of the task>,
-    repos=[{knowledgeId, commitHash: <the full HEAD hash>}]): rows back → that HEAD is indexed
-    and is the COMMIT; an error or no rows → the newest indexed commit is. Graph-only
-    repositories use the newest indexed commit.
-    Write the ROSTER once, and say in one line per repository which commit it reads:
-        | repository | knowledgeId | commit | checkout |
-    CALLS: a SEARCH (stakeout, manhunt, cross_repo_lookup, dragnet) takes repos = EVERY ROSTER
-    row, [{knowledgeId, commitHash}, …] — one call covers them all. Every other call opens ONE
-    repository: its knowledgeId and its commitHash. git runs in that repository's checkout
-    (`git -C <checkout>`). Where a checkout's HEAD is not its COMMIT, `git -C <checkout> diff
-    --stat <COMMIT> HEAD` lists the files that differ between the graph and the disk.
-    Only the repositories have to be indexed, not FROM or TO: the review reads each change from
-    git and the dependents from the graph, and S5 below reports how far apart they are.
-V3. GENERATED FILES ARE NOT REVIEWED. In S2 and S3, leave out lockfiles and other generated
-    output — package-lock.json, pnpm-lock.yaml, yarn.lock, bun.lock*, Cargo.lock, go.sum,
-    poetry.lock, Gemfile.lock, composer.lock, *.min.js, *.map, dist/, build/ — with a git
-    pathspec, e.g. `-- . ':!package-lock.json' ':!pnpm-lock.yaml'`. Name each one you
-    left out in one line under the review header ("Not reviewed (generated): …"). A version
-    change a lockfile records shows up in package.json / Cargo.toml / go.mod, which ARE reviewed.
-V4. SEVERAL CHANGES ARE ONE CHANGE. When more than one ROSTER repository carries a change,
-    run S1–S3 below in EACH repository's checkout (`git -C <checkout>`), write its files as
-    <repo>/<path> and its hunks as <repo>:F<n>.H<n>, and review them TOGETHER: a hunk in one
-    repository is often the consumer, or the contract, of a hunk in another — the pairing is the
-    finding nobody reviewing one repository can make. S4 takes each repository's COMMIT from the
-    ROSTER instead of roll_call. SCOPE below is the ROSTER when --repos is given.
-V5. Run the review below with BASE = FROM and HEAD = TO.
+W1. THE BRIEF REPLACES THE SETUP. FROM, TO, MERGE_BASE, the REPOSITORY (its knowledgeId,
+    its COMMIT — the BASE COMMIT below — and its checkout), DRIFT, the INDEX, the GROUND
+    and the ROSTER are in it. Do not run S1, S2, S4 or S5, roll_call, rap_sheet or
+    blueprint: STEP 0.1 and 0.2 are the brief's GROUND. Wherever the review below says
+    "the header above", it means the brief. git runs in the brief's checkout
+    (`git -C <checkout>`); TO "the working tree" means the file on disk.
+W2. YOUR FILE IS THE INDEX. Run S3 for it, then STEP 0.3 and STEPS 1–4, and CLEAR every
+    one of its hunks; "every hunk in the index" below means every hunk of YOUR file. An
+    INDEX file's DIFF may be opened as CONTEXT for a hunk of yours — never cleared or
+    flagged by you: its own agent does that. A file the brief marks "unchanged" has no
+    hunks: fold it (2.3) and read its dependents (2.4) against the file as it stands.
+W3. YOUR LAST MESSAGE IS ALL THE COMMAND READS. FLAG and CLEAR are lines you write; end
+    with exactly this, and nothing after it. Never name a plumbline tool in it.
+      FILE <label> <path> — <cleared>/<hunks> hunks cleared
+      PLAN <your change plan from 1.0>
+      Findings
+      <path>:<line>  ✖ <blocker | major | minor>  <kind>
+        <what is wrong and why, in one or two sentences>
+        evidence: <path>:<start>-<end> (base) · <path>:<start>-<end> (change)
+        ```suggestion
+        <replacement lines — rewrite, or a mechanical convention fix>
+        ```
+      Checked
+        <label> <path>:<start>-<end>   ✓ clean | ✖ <n>   <what was checked>
+      Not done: <each hunk without a verdict and why, or "nothing">
 
 TRY TO FINISH THE REVIEW IN THE MINIMUM TOOL CALLS POSSIBLE.
 
@@ -229,42 +189,6 @@ FLAGGED     findings delivered. Each reaches the visitor through its own
 CLEARED     hunks you have recorded a verdict on with CLEAR. This is the
             review's completeness measure: every hunk in the index belongs here
             before you stop.
-
----- SEEDING — where this run starts. EVERY file is a seed, and EACH SEED IS
-     REVIEWED BY ITS OWN AGENT, all of them at once. ----
-SD1. SEEDS[] = every file in the index (S2), whatever its status — and, when the
-     header names a TARGET (a file, a directory or pasted code), every file of
-     that target, changed or not. Write the list down with its count. No file is
-     left out because its change looks cosmetic or internal: that is judged on
-     the rows, after seeding, never before it.
-SD2. GROUND ONCE, FOR EVERY AGENT: DO rap_sheet and blueprint (0.1, 0.2) for each
-     repository that has a seed, all in ONE turn.
-SD3. ONE AGENT PER SEED. Start the plumbline-review-file agent (the Agent tool in Claude
-     Code — named plumbline:plumbline-review-file when Plumbline is loaded as a plugin;
-     the task tool in OpenCode) once for each seed. Up to 8 run at once: start
-     them in ONE message, and start the next seed's agent the moment one
-     returns, until every seed has had one. Hand each THE BRIEF and nothing else:
-       FILE        <label: F<n>, or <repo>:F<n>>  <path>  <A | M | D | unchanged>
-       REPOSITORY  <slug>  knowledgeId <id>  COMMIT <commit>  checkout <dir>
-       CHANGE      FROM <sha>  TO <sha, or "the working tree">  MERGE_BASE <sha>
-       DRIFT       yes | no — S5 for this file
-       INDEX       every other seed: label, path, status
-       GROUND      the rap_sheet lines that bear on this file, and the blueprint
-                   module it sits in
-       ROSTER      every ROSTER row: repository, knowledgeId, commit
-     The agent reads its own diff, source and graph rows: never paste them into
-     the brief.
-     NO WAY TO START AN AGENT (Codex) → you are the one agent: run STEPS 0.3–5
-     below yourself for every seed, ONE FILE AT A TIME, and skip SD4.
-SD4. MERGE. Each agent returns its file's PLAN, Findings, Checked lines and what
-     it did not get to. The same path, line and kind from two agents is one
-     finding: keep the one with more evidence. A hunk returned without a verdict
-     → start one more agent on that file, naming those hunks; still none → its
-     Checked line says "not reviewed —" and the reason the agent gave.
-     ASSERT before OUTPUT: agents returned == |SEEDS[]|, and hunks cleared ==
-     hunks in the index. Then write OUTPUT from the merged lines.
-STEPS 0–5 below are what each agent runs on its file. You do not run them (unless
-SD3 made you the one agent); read them to judge what the agents return.
 
 ---- STEP 0 — GROUND ----
 0.1  DO rap_sheet — one brief on what this repository is FOR. Read it before you
@@ -494,28 +418,3 @@ Independent calls go in ONE turn: the ORIGINAL, DIFF and case_file of the file
 you are on at once, the the_receipts of every dependent at once, every CLEAR of
 the file at once. One call per turn burns the budget on latency. What does NOT
 batch is across files: the next file's DIFF opens when this file is cleared.
-
-=============================== OUTPUT ===============================
-Write the answer as a GitHub review, in this order. Paths are repo-relative and
-written path:line so they are clickable. Never name a plumbline tool in it.
-
-Review of HEAD → <BASE>  (<files> files, <hunks> hunks)
-Graph: <repository> @ <BASE COMMIT short> — <drift, or "same as the merge base">
-
-Findings
-<path>:<line>  ✖ blocker  breaks-consumer
-  <what is wrong and why, in one or two sentences>
-  evidence: <path>:<start>-<end> (base) · <path>:<start>-<end> (change)
-  ```suggestion
-  <replacement lines — rewrite, or a mechanical convention fix>
-  ```
-
-Checked — <n> hunks
-  <label> <path>:<start>-<end>   ✓ clean    <what was checked>
-  <label> <path>:<start>-<end>   ✖ 1        <kind of the finding>
-  <label> <path>:<start>-<end> (chunk 3/17)   ✓ clean    <a big file's hunk names its chunk>
-
-✖ <n> problems (<b> blocker, <m> major, <k> minor) · <c> hunks clean
-
-Verdict: Approve | Comment | Request changes — <the single reason>
-  Approve = no findings · Comment = minor only · Request changes = any blocker or major.

@@ -13,6 +13,7 @@ import { fileURLToPath } from "node:url";
 
 const PKG = join(dirname(fileURLToPath(import.meta.url)), "..");
 const COMMANDS = join(PKG, "plugins/plumbline/commands");
+const SUBAGENTS = join(PKG, "plugins/plumbline/agents");
 const VERSION = JSON.parse(readFileSync(join(PKG, "package.json"), "utf8")).version;
 const AGENTS = ["claude", "codex", "opencode"];
 const WINDOWS = process.platform === "win32";
@@ -56,7 +57,9 @@ const TOPICS = {
 
   Where things go (user install):
     Claude Code   ~/.claude/commands/plumbline-*.md      MCP via \`claude mcp add -s user\`
+                  ~/.claude/agents/plumbline-*.md        the per-file reviewer verify and review-pr start
     OpenCode      ~/.config/opencode/command/            ~/.config/opencode/opencode.json
+                  ~/.config/opencode/agent/              the same per-file reviewer
     Codex         ~/.codex/prompts/                      ~/.codex/config.toml [mcp_servers.plumbline]
 
   Update:     npm install -g github:ByteBell/plumbline-skills, then run install again
@@ -297,6 +300,24 @@ function removeCommands(dir) {
   for (const f of commandFiles()) rmSync(join(dir, `plumbline-${f}`), { force: true });
 }
 
+// The subagents the commands start (one review per changed file) ship already named plumbline-*.md.
+// Claude Code reads `name:` from their frontmatter; OpenCode names an agent by its file and needs
+// `mode: subagent` instead — an unknown key there is passed to the model provider. Codex has no
+// subagents: its commands review every file themselves.
+const subagentFiles = () => readdirSync(SUBAGENTS).filter((f) => f.endsWith(".md"));
+
+function putSubagents(dir, flavour) {
+  mkdirSync(dir, { recursive: true });
+  for (const f of subagentFiles()) {
+    const text = readFileSync(join(SUBAGENTS, f), "utf8");
+    writeFileSync(join(dir, f), flavour === "opencode" ? text.replace(/^name: .*$/m, "mode: subagent") : text);
+  }
+}
+
+function removeSubagents(dir) {
+  for (const f of subagentFiles()) rmSync(join(dir, f), { force: true });
+}
+
 // Codex: drop any [mcp_servers.plumbline] table (up to the next table header), optionally append ours.
 function codexToml(file, table) {
   const lines = existsSync(file) ? readFileSync(file, "utf8").split("\n") : [];
@@ -339,14 +360,17 @@ async function checkKey(mcp, key) {
 function claude(action, { mcp, key, project }) {
   if (project) {
     const dir = join(project, ".claude/commands");
+    const agentDir = join(project, ".claude/agents");
     const cfg = join(project, ".mcp.json");
     const json = readJson(cfg);
     json.mcpServers ??= {};
     if (action === "install") {
       putCommands(dir);
+      putSubagents(agentDir, "claude");
       json.mcpServers.plumbline = { type: "http", url: mcp, headers: { Authorization: `Bearer ${key}` } };
     } else {
       removeCommands(dir);
+      removeSubagents(agentDir);
       delete json.mcpServers.plumbline;
     }
     writePrivate(cfg, `${JSON.stringify(json, null, 2)}\n`);
@@ -354,21 +378,25 @@ function claude(action, { mcp, key, project }) {
   }
   // User scope lives in ~/.claude.json, which Claude Code owns — go through its CLI, never edit it.
   const dir = join(homedir(), ".claude/commands");
+  const agentDir = join(homedir(), ".claude/agents");
   if (!onPath("claude")) die("the claude CLI is not on PATH — install Claude Code, or use --project <dir>");
   run("claude", ["mcp", "remove", "-s", "user", "plumbline"]);
   if (action === "install") {
     putCommands(dir);
+    putSubagents(agentDir, "claude");
     const r = run("claude", ["mcp", "add", "--transport", "http", "-s", "user", "plumbline", mcp, "--header", `Authorization: Bearer ${key}`]);
     if (!r.ok) die(`claude mcp add failed: ${r.out}`);
   } else {
     removeCommands(dir);
+    removeSubagents(agentDir);
   }
-  return `${dir}, user MCP config`;
+  return `${dir}, ${agentDir}, user MCP config`;
 }
 
 function opencode(action, { mcp, key, project }) {
   const base = project ?? join(homedir(), ".config/opencode");
   const dir = project ? join(project, ".opencode/command") : join(base, "command");
+  const agentDir = project ? join(project, ".opencode/agent") : join(base, "agent");
   const cfg = join(base, "opencode.json");
   if (!project && existsSync(join(base, "opencode.jsonc")) && !existsSync(cfg)) {
     die(`${join(base, "opencode.jsonc")} holds your OpenCode config — add the plumbline entry by hand`);
@@ -377,13 +405,15 @@ function opencode(action, { mcp, key, project }) {
   json.mcp ??= {};
   if (action === "install") {
     putCommands(dir);
+    putSubagents(agentDir, "opencode");
     json.mcp.plumbline = { type: "remote", url: mcp, enabled: true, headers: { Authorization: `Bearer ${key}` } };
   } else {
     removeCommands(dir);
+    removeSubagents(agentDir);
     delete json.mcp.plumbline;
   }
   writePrivate(cfg, `${JSON.stringify(json, null, 2)}\n`);
-  return `${dir}, ${cfg}`;
+  return `${dir}, ${agentDir}, ${cfg}`;
 }
 
 function codex(action, { mcp, key }) {

@@ -174,8 +174,9 @@ SHARE NO HIT; the union was 7 of 11.
      vocabulary. That is the commonest way this step is skipped while looking
      done. Re-word against the module map from 0.4.
 
----- STEP 1b — GREP. Only where your tools include jurisdiction AND lineup. ----
-Where they do not, skip this step: 3.3's text probe is the grep of this run.
+---- STEP 1b — GREP. COMPULSORY wherever your tools include jurisdiction AND lineup. ----
+Do it before STEP 2's first search. Only where the tools are absent, skip it:
+3.3's text probe is then the grep of this run.
 1b.1 DO jurisdiction(task = the QUESTION, verbatim). The repository is applied
      for you; the call sets the route lineup greps — this repository.
 1b.2 DO lineup(pattern) with SEVERAL different patterns for the behaviour: at

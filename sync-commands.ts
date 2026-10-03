@@ -5,8 +5,10 @@
  *   review-pr.md      ← the same review text, with a header that fetches a PR / MR instead
  *   resolve-issue.md  ← public-agent src/prompt.ts                     (the retrieval prompt, both the
  *                                                                        single- and the cross-repository one)
+ *   agents/plumbline-review-file.md ← the review algorithm cut before OUTPUT: the per-file agent verify
+ *                                      and review-pr start once per seed
  *
- * Never hand-edit those three files: change the service prompt, or the headers here, and run this again.
+ * Never hand-edit those four files: change the service prompt, or the headers here, and run this again.
  * blast.md has no service twin and is edited directly.
  *
  * Each rewrite of a service line must land exactly once. When a service prompt changes shape, this stops
@@ -18,6 +20,7 @@ import { join } from "node:path";
 
 const ROOT = process.argv[2] ?? join(process.env.HOME ?? "", "programs/kube-package");
 const OUT = join(import.meta.dir, "plugins/plumbline/commands");
+const AGENTS_OUT = join(import.meta.dir, "plugins/plumbline/agents");
 
 function rewriter(name: string, text: string) {
   return {
@@ -98,49 +101,56 @@ review.swap(
   `BASE:        FROM, fixed in the header above.`,
 );
 
-// The commands START FROM THE SEEDING STAGE: every file is a seed, seeded before any judgement about
-// it. The service prompt folds each file when its turn comes (2.3); the commands fold every seed up
-// front — a TARGET's unchanged files included — and 2.3 then reads the rows SEEDING wrote.
+// ONE AGENT PER SEED. The review algorithm runs per file — the service runs each file as its own
+// session (public-agent review/runner.ts) — so the per-file agent gets the algorithm as it stands,
+// cut before OUTPUT, and the commands get a SEEDING stage that fans the seeds out to it and merges
+// what comes back. Taken BEFORE the SEEDING swap: the agent folds its own seed at 2.3.
+const OUTPUT_MARK = "=============================== OUTPUT ===============================";
+if (review.text.split(OUTPUT_MARK).length !== 2) throw new Error(`review: expected 1 OUTPUT section`);
+const perFile = review.text.split(OUTPUT_MARK)[0].trimEnd();
+
+/** The name each agent knows the per-file reviewer by once installed (bin/plumbline.mjs). */
+const FILE_AGENT = "plumbline-review-file";
+
 review.swap(
   `---- STEP 0 — GROUND ----`,
-  `---- SEEDING — where this run starts. EVERY file is a seed. ----
+  `---- SEEDING — where this run starts. EVERY file is a seed, and EACH SEED IS
+     REVIEWED BY ITS OWN AGENT, all of them at once. ----
 SD1. SEEDS[] = every file in the index (S2), whatever its status — and, when the
      header names a TARGET (a file, a directory or pasted code), every file of
      that target, changed or not. Write the list down with its count. No file is
      left out because its change looks cosmetic or internal: that is judged on
      the rows, after seeding, never before it.
-SD2. FOR EACH seed the graph holds: DO collateral_damage(relativePath,
-     lens=['imports','callers','dependencies','contracts','types','surfaces'],
-     limit=100) and follow pagination.hasNextPage to the last page. Independent
-     seeds go in ONE turn; a long list goes in batches of about ten, one batch
-     after another, until the last seed is done. An ADDED file is not in the
-     graph yet: record it as a NEW seed and seed nothing for it.
-SD3. Write EDGES[]: one entry per seed — each dependent file, with the lens that
-     linked it and its \`via\` names. Rows under test, doc, example, fixture or
-     config paths are dropped and counted, unless the user asked for them.
-     CHECK THE PATH ON EVERY ROW, as 2.3 says: a path that cannot belong to this
-     repository leaked from another one.
-SD4. ASSERT before STEP 0: seeds seeded + NEW seeds == |SEEDS[]|. A seed with no
-     call is a file whose consumers this review silently leaves out. Do not stop
-     at the first seed that returns rows; the stage ends with the last seed.
+SD2. GROUND ONCE, FOR EVERY AGENT: DO rap_sheet and blueprint (0.1, 0.2) for each
+     repository that has a seed, all in ONE turn.
+SD3. ONE AGENT PER SEED. Start the ${FILE_AGENT} agent (the Agent tool in Claude
+     Code — named plumbline:${FILE_AGENT} when Plumbline is loaded as a plugin;
+     the task tool in OpenCode) once for each seed. Up to 8 run at once: start
+     them in ONE message, and start the next seed's agent the moment one
+     returns, until every seed has had one. Hand each THE BRIEF and nothing else:
+       FILE        <label: F<n>, or <repo>:F<n>>  <path>  <A | M | D | unchanged>
+       REPOSITORY  <slug>  knowledgeId <id>  COMMIT <commit>  checkout <dir>
+       CHANGE      FROM <sha>  TO <sha, or "the working tree">  MERGE_BASE <sha>
+       DRIFT       yes | no — S5 for this file
+       INDEX       every other seed: label, path, status
+       GROUND      the rap_sheet lines that bear on this file, and the blueprint
+                   module it sits in
+       ROSTER      every ROSTER row: repository, knowledgeId, commit
+     The agent reads its own diff, source and graph rows: never paste them into
+     the brief.
+     NO WAY TO START AN AGENT (Codex) → you are the one agent: run STEPS 0.3–5
+     below yourself for every seed, ONE FILE AT A TIME, and skip SD4.
+SD4. MERGE. Each agent returns its file's PLAN, Findings, Checked lines and what
+     it did not get to. The same path, line and kind from two agents is one
+     finding: keep the one with more evidence. A hunk returned without a verdict
+     → start one more agent on that file, naming those hunks; still none → its
+     Checked line says "not reviewed —" and the reason the agent gave.
+     ASSERT before OUTPUT: agents returned == |SEEDS[]|, and hunks cleared ==
+     hunks in the index. Then write OUTPUT from the merged lines.
+STEPS 0–5 below are what each agent runs on its file. You do not run them (unless
+SD3 made you the one agent); read them to judge what the agents return.
 
 ---- STEP 0 — GROUND ----`,
-);
-review.swap(
-  `EDGES[]     { path, lens, direction, via, verdict } — every file the graph links
-            to the file you are on, and what the pair check concluded, STEP 2`,
-  `EDGES[]     { seed, path, lens, direction, via, verdict } — every file the graph
-            links to each seed. Written at SEEDING; STEP 2's pair check fills in
-            the verdict`,
-);
-review.swap(
-  `2.3  FOLD THE SEED. DO collateral_damage(relativePath, lens=['imports',
-     'callers','dependencies','contracts','types','surfaces'], limit=100) —
-     when you start on the file, beside 1.1: it takes the path, not case_file's
-     answer.`,
-  `2.3  EDGES[] ALREADY HOLDS THIS FILE'S ROWS — SEEDING folded every seed through
-     these six lenses. Read them now; call collateral_damage again here only
-     for a file SEEDING could not know of (a re-export file, below).`,
 );
 
 await Bun.write(
@@ -229,6 +239,46 @@ P7. When the review is written, delete the refs you made: \`git -C <checkout> up
     refs/plumbline/pr-<n>\`. Nothing else in any checkout changes.
 
 ${review.text}
+`,
+);
+
+await Bun.write(
+  join(AGENTS_OUT, `${FILE_AGENT}.md`),
+  `---
+name: ${FILE_AGENT}
+description: Reviews ONE file of a change against the Plumbline graph, for /plumbline-review-pr and /plumbline-verify — started by those commands once per file, with a brief naming the file, its repository, commit and change. Not for direct use.
+---
+PLUMBLINE REVIEW — ONE FILE. A review command started you with a BRIEF: one file of a
+change, and what its setup worked out. Review that file and nothing else, and return what
+you found. Other agents are reviewing the change's other files at the same time.
+
+W1. THE BRIEF REPLACES THE SETUP. FROM, TO, MERGE_BASE, the REPOSITORY (its knowledgeId,
+    its COMMIT — the BASE COMMIT below — and its checkout), DRIFT, the INDEX, the GROUND
+    and the ROSTER are in it. Do not run S1, S2, S4 or S5, roll_call, rap_sheet or
+    blueprint: STEP 0.1 and 0.2 are the brief's GROUND. Wherever the review below says
+    "the header above", it means the brief. git runs in the brief's checkout
+    (\`git -C <checkout>\`); TO "the working tree" means the file on disk.
+W2. YOUR FILE IS THE INDEX. Run S3 for it, then STEP 0.3 and STEPS 1–4, and CLEAR every
+    one of its hunks; "every hunk in the index" below means every hunk of YOUR file. An
+    INDEX file's DIFF may be opened as CONTEXT for a hunk of yours — never cleared or
+    flagged by you: its own agent does that. A file the brief marks "unchanged" has no
+    hunks: fold it (2.3) and read its dependents (2.4) against the file as it stands.
+W3. YOUR LAST MESSAGE IS ALL THE COMMAND READS. FLAG and CLEAR are lines you write; end
+    with exactly this, and nothing after it. Never name a plumbline tool in it.
+      FILE <label> <path> — <cleared>/<hunks> hunks cleared
+      PLAN <your change plan from 1.0>
+      Findings
+      <path>:<line>  ✖ <blocker | major | minor>  <kind>
+        <what is wrong and why, in one or two sentences>
+        evidence: <path>:<start>-<end> (base) · <path>:<start>-<end> (change)
+        \`\`\`suggestion
+        <replacement lines — rewrite, or a mechanical convention fix>
+        \`\`\`
+      Checked
+        <label> <path>:<start>-<end>   ✓ clean | ✖ <n>   <what was checked>
+      Not done: <each hunk without a verdict and why, or "nothing">
+
+${perFile}
 `,
 );
 
@@ -468,4 +518,4 @@ Not done
 `,
 );
 
-console.log(`rendered verify.md, review-pr.md and resolve-issue.md into ${OUT}`);
+console.log(`rendered verify.md, review-pr.md and resolve-issue.md into ${OUT}, ${FILE_AGENT}.md into ${AGENTS_OUT}`);
