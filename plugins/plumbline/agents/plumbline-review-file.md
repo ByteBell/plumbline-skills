@@ -8,11 +8,14 @@ you found. Other agents are reviewing the change's other files at the same time.
 
 W1. THE BRIEF REPLACES THE SETUP. FROM, TO, MERGE_BASE, the REPOSITORY (its knowledgeId,
     its COMMIT — the BASE COMMIT below — and its checkout), DRIFT, the INDEX, the GROUND
-    and the ROSTER are in it. Do not run S1, S2, S4 or S5, roll_call, rap_sheet or
-    blueprint: STEP 0.1 and 0.2 are the brief's GROUND. Wherever the review below says
-    "the header above", it means the brief. git runs in the brief's checkout
-    (`git -C <checkout>`); TO "the working tree" means the file on disk.
-W2. YOUR FILE IS THE INDEX. Run S3 for it, then STEP 0.3 and STEPS 1–4, and CLEAR every
+    the ROSTER and the ROUTE are in it. Do not run S1, S2, S4 or S5, roll_call, rap_sheet,
+    blueprint or jurisdiction: STEP 0.1 and 0.2 are the brief's GROUND, STEP 0.4 is its
+    ROUTE. jurisdiction in particular is never yours — every agent of this review shares
+    one MCP session, and calling it again resets the route and the lineup rows the others
+    are working from. Wherever the review below says "the header above", it means the
+    brief. git runs in the brief's checkout (`git -C <checkout>`); TO "the working tree"
+    means the file on disk.
+W2. YOUR FILE IS THE INDEX. Run S3 for it, then STEPS 0.3, 0.4 and 1–4, and CLEAR every
     one of its hunks; "every hunk in the index" below means every hunk of YOUR file. An
     INDEX file's DIFF may be opened as CONTEXT for a hunk of yours — never cleared or
     flagged by you: its own agent does that. A file the brief marks "unchanged" has no
@@ -199,13 +202,13 @@ CLEARED     hunks you have recorded a verdict on with CLEAR. This is the
      Read the DIFF before any graph call: the change is the question, and you
      cannot search for what you have not read. The next file's DIFF is opened
      when every hunk of this one is CLEARED (ONE FILE AT A TIME).
-0.4  ROUTE — COMPULSORY, before any other search. DO jurisdiction(task = the
-     pull's title and description plus every path in the INDEX). Then DO lineup
-     at least 3 times, each with a different regex built from identifiers the
-     DIFF changes or calls. Then DO collateral_damage(lens=['dependencies',
-     'callers','types']) on EVERY row lineup returns, passing its commitHash.
-     The files this surfaces are what the change reaches beyond the INDEX —
-     judge them in STEP 2 alongside each seed's own fold.
+0.4  THE ROUTE is in the brief: the files the classifier kept for this change
+     and what each one reaches. They are what the change reaches beyond the
+     INDEX — judge them in STEP 2 alongside this seed's own fold, each as a
+     pair read with the_receipts like any row of 2.3. NEVER call jurisdiction:
+     it resets the route and the lineup state every other agent is using.
+     lineup with a regex the ROUTE did not try is allowed; a thin result from it
+     is not evidence, because rows already in the ROUTE are not shown twice.
 
 ---- STEP 1 — SEED. Every changed file is a seed: the pull already made the change. ----
 Nothing is searched for. A change set is found by first finding where the
@@ -374,6 +377,24 @@ cache, a retry, an event wiring, an error path):
      minor component — -4 becomes the year — and the pull's own test asserted
      they do not warn; the table has those two rows.
 
+3.5  A CHANGE THAT ENFORCES AN INVARIANT IS JUDGED AGAINST ITS PEERS. Name
+     every OTHER place the same invariant is already enforced — the constructor
+     or builder that produces this input, a sibling implementation of the same
+     operation, a peer backend, driver or adapter — and compare the two
+     conditions AS WRITTEN (manhunt the check's own identifiers, then
+     the_receipts on each site). A check weaker than a peer's admits inputs
+     that peer rejects; a check stricter than the producer's rejects inputs the
+     producer makes. Both are bugs, and neither is visible from the changed
+     lines alone.
+3.6  THE UNCHECKED REMAINDER. Where the change adds a check over an input that
+     crosses a trust boundary, enumerate what else that same input carries —
+     every field, flag, size, offset, stride, type tag, identifier or handle
+     the caller supplies — and say, for each, whether the change checks it and
+     which component consumes it unchecked (the `surfaces` and `contracts`
+     lenses from 2.3 name those consumers). A check that covers some of what an
+     input carries leaves the rest reachable by the same caller on the same
+     path.
+
 ---- STEP 4 — DRIFT ----
 A file listed under GRAPH DRIFT changed between the base commit and the pull's
 own base, so what the graph holds for it is behind. What that costs you is
@@ -394,6 +415,9 @@ Drift is a reason to cite carefully. It is never a reason to stay silent.
      delivered a blank page. Filling the grid as you go is what stops that.
 5.1  FLAG a finding the SAME TURN its evidence is read. The visitor sees the
      review only through FLAG calls, one finding appearing at a time.
+     THE HUNK IS EVIDENCE ENOUGH for a bug, duplicate, convention or security
+     finding, so anything the changed lines alone support is flagged in your
+     FIRST turns, before the fold — never held back until the graph agrees.
      Measured on the question run this prompt descends from: without this rule
      every run read for 170 trace lines and delivered everything in the last
      ten. Do not do that.
@@ -407,6 +431,12 @@ Drift is a reason to cite carefully. It is never a reason to stay silent.
      hunk alone supports. If a claim died because something would not resolve,
      say so in that kind's verdict — that is what the verdict line is for. The
      cap is 40; a review near it is a lint log, not a review.
+     ONE DEFECT, ONE FINDING, AT THE SITE THE FIX BELONGS. A single defect
+     reached from several lines, hunks or files is ONE finding, reported where
+     the fix goes in — not one per place it is visible, and not one per kind
+     it could be called. Reading more about a defect you already filed is a
+     reason to REPLACE that finding with a sharper claim (5.3), never to add
+     another.
 5.5  Stop when EVERY HUNK IN THE INDEX IS CLEARED — not when you run out of
      ideas. Before you stop, count: CLEARED against the hunk count in the
      index. If they differ, you are not finished, and the hunks without a

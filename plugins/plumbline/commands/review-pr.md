@@ -240,6 +240,26 @@ SD1. SEEDS[] = every file in the index (S2), whatever its status — and, when t
      the rows, after seeding, never before it.
 SD2. GROUND ONCE, FOR EVERY AGENT: DO rap_sheet and blueprint (0.1, 0.2) for each
      repository that has a seed, all in ONE turn.
+SD2b. ROUTE ONCE, FOR EVERY AGENT — the server's compulsory opening, run by YOU and
+     never by an agent. jurisdiction keeps ONE route per MCP session and every agent
+     you start shares this session, so a second jurisdiction call throws away the
+     lineup rows the first one paid for. In this order:
+       a. DO jurisdiction(task = the pull's title and description plus every path in
+          the INDEX). It returns the lane, the repositories in scope and that lane's
+          search instructions.
+       b. The identifiers, WITHOUT opening a DIFF — that is the agents' work, ONE FILE
+          AT A TIME: `git diff -U0 --no-renames MERGE_BASE HEAD` prints only the
+          changed lines and the @@ headers naming each hunk's enclosing symbol. Take
+          the names from there.
+       c. DO lineup at least 3 times, each with a different regex built from those
+          identifiers. The classifier keeps the files that belong to this change —
+          INCLUDING files the pull does not touch, the ones no diff can show.
+       d. DO collateral_damage(lens=['dependencies','callers','types']) on EVERY row
+          lineup kept, passing that row's commitHash.
+     Write the ROUTE once — the lane, then one line per lineup row:
+        | path | p | commitHash | reaches: the paths d. surfaced, each with lens and via |
+     lineup shows a row ONCE per session: a row in this table never comes back from a
+     later lineup call, so this table is the only copy the agents get.
 SD3. ONE AGENT PER SEED. Start the plumbline-review-file agent (the Agent tool in Claude
      Code — named plumbline:plumbline-review-file when Plumbline is loaded as a plugin;
      the task tool in OpenCode) once for each seed. Up to 8 run at once: start
@@ -253,8 +273,9 @@ SD3. ONE AGENT PER SEED. Start the plumbline-review-file agent (the Agent tool i
        GROUND      the rap_sheet lines that bear on this file, and the blueprint
                    module it sits in
        ROSTER      every ROSTER row: repository, knowledgeId, commit
+       ROUTE       the ROUTE from SD2b, whole — the lane and every row
      The agent reads its own diff, source and graph rows: never paste them into
-     the brief.
+     the brief. The ROUTE is the one exception, because the agent cannot fetch it.
      NO WAY TO START AN AGENT (Codex) → you are the one agent: run STEPS 0.3–5
      below yourself for every seed, ONE FILE AT A TIME, and skip SD4.
 SD4. MERGE. Each agent returns its file's PLAN, Findings, Checked lines and what
@@ -276,13 +297,13 @@ SD3 made you the one agent); read them to judge what the agents return.
      Read the DIFF before any graph call: the change is the question, and you
      cannot search for what you have not read. The next file's DIFF is opened
      when every hunk of this one is CLEARED (ONE FILE AT A TIME).
-0.4  ROUTE — COMPULSORY, before any other search. DO jurisdiction(task = the
-     pull's title and description plus every path in the INDEX). Then DO lineup
-     at least 3 times, each with a different regex built from identifiers the
-     DIFF changes or calls. Then DO collateral_damage(lens=['dependencies',
-     'callers','types']) on EVERY row lineup returns, passing its commitHash.
-     The files this surfaces are what the change reaches beyond the INDEX —
-     judge them in STEP 2 alongside each seed's own fold.
+0.4  THE ROUTE is in the brief (SD2b): the files the classifier kept for this
+     change and what each one reaches. They are what the change reaches beyond
+     the INDEX — judge them in STEP 2 alongside this seed's own fold, each as a
+     pair read with the_receipts like any row of 2.3. NEVER call jurisdiction:
+     it resets the route and the lineup state every other agent is using.
+     lineup with a regex the ROUTE did not try is allowed; a thin result from it
+     is not evidence, because rows already in the ROUTE are not shown twice.
 
 ---- STEP 1 — SEED. Every changed file is a seed: the pull already made the change. ----
 Nothing is searched for. A change set is found by first finding where the
@@ -451,6 +472,24 @@ cache, a retry, an event wiring, an error path):
      minor component — -4 becomes the year — and the pull's own test asserted
      they do not warn; the table has those two rows.
 
+3.5  A CHANGE THAT ENFORCES AN INVARIANT IS JUDGED AGAINST ITS PEERS. Name
+     every OTHER place the same invariant is already enforced — the constructor
+     or builder that produces this input, a sibling implementation of the same
+     operation, a peer backend, driver or adapter — and compare the two
+     conditions AS WRITTEN (manhunt the check's own identifiers, then
+     the_receipts on each site). A check weaker than a peer's admits inputs
+     that peer rejects; a check stricter than the producer's rejects inputs the
+     producer makes. Both are bugs, and neither is visible from the changed
+     lines alone.
+3.6  THE UNCHECKED REMAINDER. Where the change adds a check over an input that
+     crosses a trust boundary, enumerate what else that same input carries —
+     every field, flag, size, offset, stride, type tag, identifier or handle
+     the caller supplies — and say, for each, whether the change checks it and
+     which component consumes it unchecked (the `surfaces` and `contracts`
+     lenses from 2.3 name those consumers). A check that covers some of what an
+     input carries leaves the rest reachable by the same caller on the same
+     path.
+
 ---- STEP 4 — DRIFT ----
 A file listed under GRAPH DRIFT changed between the base commit and the pull's
 own base, so what the graph holds for it is behind. What that costs you is
@@ -471,6 +510,9 @@ Drift is a reason to cite carefully. It is never a reason to stay silent.
      delivered a blank page. Filling the grid as you go is what stops that.
 5.1  FLAG a finding the SAME TURN its evidence is read. The visitor sees the
      review only through FLAG calls, one finding appearing at a time.
+     THE HUNK IS EVIDENCE ENOUGH for a bug, duplicate, convention or security
+     finding, so anything the changed lines alone support is flagged in your
+     FIRST turns, before the fold — never held back until the graph agrees.
      Measured on the question run this prompt descends from: without this rule
      every run read for 170 trace lines and delivered everything in the last
      ten. Do not do that.
@@ -484,6 +526,12 @@ Drift is a reason to cite carefully. It is never a reason to stay silent.
      hunk alone supports. If a claim died because something would not resolve,
      say so in that kind's verdict — that is what the verdict line is for. The
      cap is 40; a review near it is a lint log, not a review.
+     ONE DEFECT, ONE FINDING, AT THE SITE THE FIX BELONGS. A single defect
+     reached from several lines, hunks or files is ONE finding, reported where
+     the fix goes in — not one per place it is visible, and not one per kind
+     it could be called. Reading more about a defect you already filed is a
+     reason to REPLACE that finding with a sharper claim (5.3), never to add
+     another.
 5.5  Stop when EVERY HUNK IN THE INDEX IS CLEARED — not when you run out of
      ideas. Before you stop, count: CLEARED against the hunk count in the
      index. If they differ, you are not finished, and the hunks without a
